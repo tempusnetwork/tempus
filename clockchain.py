@@ -264,6 +264,25 @@ class Clockchain(object):
 
         return True
 
+    # TODO: Blockception - huge TODO
+    # TODO: The idea is that anyone who publishes a collect above a certain score, can participate to be chosen
+    # TODO: However, only one block out of potentially thousands published, will be chosen to be forged
+    # TODO: The idea is inspired by how conception works in nature, an egg being fertilized
+    # TODO: This allows to choose a high-fitness block, which fulfills a certain number of criteria
+
+    # TODO: These criteria are:
+    # TODO: *** Including as many pings as possible from previous collects
+    # TODO: This is done to not exclude other peoples pings, thereby increasing ones own uptime while decreasing others
+    # TODO: *** Excluding pings that have not been seen before - unless that ping accepted by >50% of current collects
+    # TODO: This is done to have a voting-to-be-accepted mechanism for new peers that have never been seen before
+
+    # TODO: The combination of above makes sure that 1) you include as many peers as possible from previous collects
+    # TODO: And 2) Spamming network with thousand nodes immediately not possible. Each node needs to be accepted first
+
+    # TODO: Another mechanism to be added is timestamping. Each collect is forged programatically every 30 min
+    # TODO: This allows for collection of any amount of collects within a set 30 minute time frame
+    # TODO: To make this possible, an un-gameable timestamping mechanism needs to be chosen
+    # TODO: For example, choosing the median timestamp of all previous / current collects
     def validate_collect(self, collect):
         if not validate_schema(collect, 'collect_schema.json'):
             logger.debug("Failed schema validation")
@@ -462,6 +481,8 @@ coloredlogs.install(level='DEBUG', logger=logger, fmt='(%(threadName)-10s) %(mes
 clockchain = Clockchain()
 
 
+# TODO: Need to add rogue client which tries to attack the network in as many ways as possible
+# TODO: This is to learn how to make the network more robust and failsafe
 @app.route('/forward/collect', methods=['POST'])
 def forward_collect():
     collect = request.get_json()
