@@ -477,7 +477,7 @@ logger = logging.getLogger(__name__)
 coloredlogs.install(level='DEBUG', logger=logger, fmt='(%(threadName)-10s) %(message)s')
 
 
-# Instantiate the timechain
+# Instantiate the clockchain
 clockchain = Clockchain()
 
 
