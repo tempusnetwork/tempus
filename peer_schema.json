@@ -1,0 +1,9 @@
+{
+	"type" : "object",
+	"properties" : {
+		"peer" : {
+			"type": "string"
+		}
+	},
+	"required": ["peer"]
+}

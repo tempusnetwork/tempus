@@ -1,0 +1,15 @@
+{
+    "ping_reward": 100,
+    "default_pubkey": "7e0732eb85ad8e1fa22068b3ce88f682daf8c7e352cb552198a6cc038f8707651c2a9fec05df270513ec0da46a81c3e93256992569b4058483fc0a3c88d48fdf",
+    "generate_rand_addr": true,
+    "timeout": 4,
+    "max_randint": 100000000000,
+    "nonce_jump": 1000,
+    "difficulty": 4,
+    "score_limit": 0.045,
+    "genesis_nonce": 42066788009,
+    "expiring_dict_max_len": 1000,
+    "expiring_dict_max_age": 10,
+    "seeds": ["http://localhost:5000","http://localhost:5001","http://localhost:5002"],
+    "max_hops": 1
+}

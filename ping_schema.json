@@ -1,0 +1,15 @@
+{
+	"type" : "object",
+	"properties" : {
+		"pubkey" : {
+			"type" : "string"
+		},
+		"nonce" : {
+			"type" : "integer"
+		},
+		"signature" : {
+			"type" : "string"
+		}
+	},
+	"required": ["pubkey", "nonce", "signature"]
+}
