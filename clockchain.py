@@ -567,7 +567,7 @@ def mutual_add():
         # Verify that the host's address matches the key pair used to sign the mutual_add request
         if not pubkey_to_addr(values['pubkey']) == addr:
             print("Received mutual_add request signed with key not matching host")
-            return "Signature does not match address of provided host"
+            return "Signature does not match address of provided host", 400
 
         if not clockchain.register_peer(remote_url, addr):
             return "Could not register peer", 400
