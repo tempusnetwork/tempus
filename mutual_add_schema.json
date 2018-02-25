@@ -1,0 +1,15 @@
+{
+	"type" : "object",
+	"properties" : {
+		"pubkey" : {
+			"type" : "string"
+		},
+		"signature" : {
+			"type" : "string"
+		},
+		"port" : {
+			"type" : "integer"
+		}
+	},
+	"required": ["pubkey", "port", "signature"]
+}

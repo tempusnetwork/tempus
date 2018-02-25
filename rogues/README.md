@@ -1,0 +1,1 @@
+Directory for any rogue scripts and clients to try and attack the network.

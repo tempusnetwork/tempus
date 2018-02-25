@@ -27,8 +27,8 @@ with open('config.json') as config_file:
 
 # TODO: Make more secure way of retrieving private key
 # TODO: For now this file is in .gitignore
-with open('priv.json') as privkey_file:
-    privkey = json.load(privkey_file)
+#with open('priv.json') as privkey_file:
+#    privkey = json.load(privkey_file)
 
 difficulty = config['difficulty']
 
@@ -331,7 +331,9 @@ def send_mutual_add_requests(peers, get_further_peers=False):
     # Mutual add peers
     for peer in peers:
         if peer not in clockchain.peers:
-            content = {"port": port}
+            content = {"port": port, 'pubkey': clockchain.pubkey}
+            signature = sign(standard_encode(content), clockchain.privkey)
+            content['signature'] = signature
             try:
                 response = requests.post(peer + '/mutual_add', json=content, timeout=config['timeout'])
                 peer_addr = response.text
@@ -539,6 +541,16 @@ def forward_ping():
 @app.route('/mutual_add', methods=['POST'])
 def mutual_add():
     values = request.get_json()
+
+    # Verify json schema
+    if not validate_schema(values, 'mutual_add_schema.json'):
+        return "Invalid request", 400
+
+    # Verify that pubkey and signature match
+    signature = values.pop("signature")
+    if not verify(standard_encode(values), signature, values['pubkey']):
+        return "Invalid signature", 400
+
     # TODO: What if rogue peer sends fake port? Can do a mirror ddos?
     remote_port = int(values.get('port'))  # TODO: Do schema validation for integer sizes / string lengths..
 
@@ -551,6 +563,12 @@ def mutual_add():
     # TODO: Add signature validation here? to make sure peer is who they say they are..
     if remote_cleaned_url != own_cleaned_url:  # Avoid inf loop by not adding self..
         addr = requests.get(remote_url + '/info/addr').text
+
+        # Verify that the host's address matches the key pair used to sign the mutual_add request
+        if not pubkey_to_addr(values['pubkey']) == addr:
+            print("Received mutual_add request signed with key not matching host")
+            return "Signature does not match address of provided host", 400
+
         if not clockchain.register_peer(remote_url, addr):
             return "Could not register peer", 400
         else:  # Make sure the new joiner gets my pings (if I have any)
