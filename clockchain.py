@@ -17,18 +17,16 @@ import logging
 import socket
 import copy
 from ecdsa import BadSignatureError
+import os
 
 from pki import get_kp, pubkey_to_addr, sign, verify
 
 from expiringdict import ExpiringDict
 
-with open('config.json') as config_file:
-    config = json.load(config_file)
+dir_path = os.path.dirname(os.path.realpath(__file__))
 
-# TODO: Make more secure way of retrieving private key
-# TODO: For now this file is in .gitignore
-#with open('priv.json') as privkey_file:
-#    privkey = json.load(privkey_file)
+with open(dir_path + '/config/config.json') as config_file:
+    config = json.load(config_file)
 
 difficulty = config['difficulty']
 
@@ -142,8 +140,12 @@ class Clockchain(object):
             self.addr = pubkey_to_addr(self.pubkey)
             logger.debug("Using random addr + privkey: " + self.privkey)
         else:
-            self.pubkey = config['default_pubkey']
-            self.privkey = privkey['priv']
+            # Assumes priv.json exists containing fixed private key
+            with open(dir_path + '/config/priv.json') as privkey_file:
+                privkey = json.load(privkey_file)
+
+            self.pubkey, self.privkey = get_kp(privkey=privkey['priv'])
+
             self.addr = pubkey_to_addr(self.pubkey)
 
         logger.debug("This node is " + self.addr)

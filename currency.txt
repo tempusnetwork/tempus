@@ -1,1 +1,0 @@
-Soon, a currency chain will be built. The idea is to keep the clockchain and a currency chain separate.
