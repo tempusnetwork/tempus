@@ -339,7 +339,7 @@ def send_mutual_add_requests(peers, get_further_peers=False):
 
 
 def join_network_worker():
-    time.sleep(2)
+    time.sleep(10)
 
     # First add seeds, and get the seeds peers
     peers_of_seeds = send_mutual_add_requests(config['seeds'], get_further_peers=True)
