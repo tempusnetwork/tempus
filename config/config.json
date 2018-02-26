@@ -1,5 +1,4 @@
 {
-    "default_pubkey": "7e0732eb85ad8e1fa22068b3ce88f682daf8c7e352cb552198a6cc038f8707651c2a9fec05df270513ec0da46a81c3e93256992569b4058483fc0a3c88d48fdf",
     "generate_rand_addr": true,
     "timeout": 4,
     "max_randint": 100000000000,

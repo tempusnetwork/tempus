@@ -17,18 +17,18 @@ import logging
 import socket
 import copy
 from ecdsa import BadSignatureError
+import os
 
 from pki import get_kp, pubkey_to_addr, sign, verify
 
 from expiringdict import ExpiringDict
 
-with open('config.json') as config_file:
-    config = json.load(config_file)
+# Set current working directory to the directory of this file
+dir_path = os.path.dirname(os.path.realpath(__file__))
+os.chdir(dir_path)
 
-# TODO: Make more secure way of retrieving private key
-# TODO: For now this file is in .gitignore
-#with open('priv.json') as privkey_file:
-#    privkey = json.load(privkey_file)
+with open(dir_path + '/config/config.json') as config_file:
+    config = json.load(config_file)
 
 difficulty = config['difficulty']
 
@@ -52,7 +52,7 @@ def validate_schema(dictionary, schema):
         schema = json.load(data_file)
     try:
         validate(dictionary, schema)
-    except:
+    except BaseException:
         logger.debug("Invalid/missing values: " + str(sys.exc_info()))
         logger.debug(traceback.format_exc())
         return False
@@ -142,8 +142,12 @@ class Clockchain(object):
             self.addr = pubkey_to_addr(self.pubkey)
             logger.debug("Using random addr + privkey: " + self.privkey)
         else:
-            self.pubkey = config['default_pubkey']
-            self.privkey = privkey['priv']
+            # Assumes priv.json exists containing fixed private key
+            with open(dir_path + '/config/priv.json') as privkey_file:
+                privkey = json.load(privkey_file)
+
+            self.pubkey, self.privkey = get_kp(privkey=privkey['priv'])
+
             self.addr = pubkey_to_addr(self.pubkey)
 
         logger.debug("This node is " + self.addr)
@@ -224,9 +228,8 @@ class Clockchain(object):
                     if origin != self.peers[peer]:  # If origin addr is not target peer addr
                         requests.post(peer + '/forward/' + route + '?addr=' + origin +
                                       "&redistribute=" + str(redistribute+1), json=data_dict, timeout=config['timeout'])
-                # TODO: Fix all too broad excepts..
-                # TODO: https://stackoverflow.com/questions/21553327/why-is-except-pass-a-bad-programming-practice
-                except:
+                except BaseException:
+                    logger.debug(str(sys.exc_info()))
                     pass
 
     def unregister_peer(self, url):
@@ -259,32 +262,13 @@ class Clockchain(object):
                 return False
         except BadSignatureError:
             # TODO : When new joiner joins, make sure seeds/new friends relate the latest hash to them..
-            print("Bad signature.. probably because new hash found ")
+            print("Mismatch in signature validation, possibly due to chain split / simultaneous solutions found")
             return False
 
         return True
 
-    # TODO: Blockception - huge TODO
-    # TODO: The idea is that anyone who publishes a collect above a certain score, can participate to be chosen
-    # TODO: However, only one block out of potentially thousands published, will be chosen to be forged
-    # TODO: The idea is inspired by how conception works in nature, an egg being fertilized
-    # TODO: This allows to choose a high-fitness block, which fulfills a certain number of criteria
-
-    # TODO: These criteria are:
-    # TODO: *** Including as many pings as possible from previous collects
-    # TODO: This is done to not exclude other peoples pings, thereby increasing ones own uptime while decreasing others
-    # TODO: *** Excluding pings that have not been seen before - unless that ping accepted by >50% of current collects
-    # TODO: This is done to have a voting-to-be-accepted mechanism for new peers that have never been seen before
-
-    # TODO: The combination of above makes sure that 1) you include as many peers as possible from previous collects
-    # TODO: And 2) Spamming network with thousand nodes immediately not possible. Each node needs to be accepted first
-
-    # TODO: Another mechanism to be added is timestamping. Each collect is forged programatically every 30 min
-    # TODO: This allows for collection of any amount of collects within a set 30 minute time frame
-    # TODO: To make this possible, an un-gameable timestamping mechanism needs to be chosen
-    # TODO: For example, choosing the median timestamp of all previous / current collects
     def validate_collect(self, collect):
-        if not validate_schema(collect, 'collect_schema.json'):
+        if not validate_schema(collect, dir_path + '/schemas/collect_schema.json'):
             logger.debug("Failed schema validation")
             return False
 
@@ -309,7 +293,7 @@ class Clockchain(object):
         return True
 
     def validate_ping(self, ping, check_in_pool=True):
-        if not validate_schema(ping, 'ping_schema.json'):
+        if not validate_schema(ping, dir_path + '/schemas/ping_schema.json'):
             return False
 
         # Check addr already not in dict
@@ -338,7 +322,7 @@ def send_mutual_add_requests(peers, get_further_peers=False):
                 response = requests.post(peer + '/mutual_add', json=content, timeout=config['timeout'])
                 peer_addr = response.text
                 status_code = response.status_code
-            except:
+            except BaseException:
                 logger.debug("no response from peer, did not add: " + str(sys.exc_info()))
                 continue
             if status_code == 201:
@@ -355,7 +339,10 @@ def send_mutual_add_requests(peers, get_further_peers=False):
 
 
 def join_network_worker():
-    time.sleep(2)
+    # Sleeping random amount to not have seed-clash (cannot do circular adding of peers at the exact same time as seeds)
+    sleeptime = random.randrange(3000)/1000.0
+    logger.debug("Sleeping for " + str(sleeptime) + "s before joining network")
+    time.sleep(sleeptime)
 
     # First add seeds, and get the seeds peers
     peers_of_seeds = send_mutual_add_requests(config['seeds'], get_further_peers=True)
@@ -543,7 +530,7 @@ def mutual_add():
     values = request.get_json()
 
     # Verify json schema
-    if not validate_schema(values, 'mutual_add_schema.json'):
+    if not validate_schema(values, dir_path + '/schemas/mutual_add_schema.json'):
         return "Invalid request", 400
 
     # Verify that pubkey and signature match
