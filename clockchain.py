@@ -339,7 +339,10 @@ def send_mutual_add_requests(peers, get_further_peers=False):
 
 
 def join_network_worker():
-    time.sleep(10)
+    # Sleeping random amount to not have seed-clash (cannot do circular adding of peers at the exact same time as seeds)
+    sleeptime = random.randrange(3000)/1000.0
+    logger.debug("Sleeping for " + str(sleeptime) + "s before joining network")
+    time.sleep(sleeptime)
 
     # First add seeds, and get the seeds peers
     peers_of_seeds = send_mutual_add_requests(config['seeds'], get_further_peers=True)
