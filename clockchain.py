@@ -80,6 +80,11 @@ def hash(content, times=1):
         return hashlib.sha256(encoded).hexdigest()
 
 
+def hash_sum(content):
+    content_hash = hash(content)
+    return sum([int(digit, 16) for digit in content_hash])
+
+
 def similar(a, b):
     total = 0
     for i in range(64):
