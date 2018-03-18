@@ -148,6 +148,8 @@ class Clockchain(object):
         self.peers = {}
         self.pingpool = {}
         self.added_ping = False
+        self.grace_period = 1 * 60
+        self.block_candidates = []
 
         # cache to avoid processing duplicate json forwards
         self.duplicate_cache = ExpiringDict(max_len=config['expiring_dict_max_len'],
@@ -175,6 +177,54 @@ class Clockchain(object):
         genesis_addr = "tempigFUe1uuRsAQ7WWNpb5r97pDCJ3wp9"
         self.chain.append(
             {'addr': genesis_addr, 'nonce': 27033568337, 'list': []})
+
+    def block_continuity(self, block):
+        previous_addresses = set(self.chain[-1]['pool'].keys())
+        current_addresses = set(block['pool'].keys())
+        common_addresses = previous_addresses.intersection(current_addresses)
+        return len(common_addresses) / len(previous_addresses)
+
+    def validate_block_continuity(self, block):
+        if len(self.chain) == 1:
+            return True
+        if self.block_continuity(block) > 0.8:
+            return True
+        return False
+
+    def validate_block(self, block):
+        if not self.validate_block_continuity(block):
+            return False
+        if not self.validate_block_timestamp(block):
+            return False
+        return True
+
+    def purge_by(self, func):
+        max_val = func(
+            max(
+                self.block_candidates,
+                key=func
+            )
+        )
+        self.block_candidates = [
+            candidate
+            for candidate in self.block_candidates
+            if func(candidate) == max_val
+        ]
+
+    def tick(self, candidate_block):
+        time.sleep(self.grace_period)
+        self.block_candidates.append(candidate_block)
+
+        if len(self.block_candidates) > 1:
+            self.purge_by(block_continuity)
+
+        if len(self.block_candidates) > 1:
+            self.purge_by(median_ts)
+
+        if len(self.block_candidates) > 1:
+            self.purge_by(hash_sum)
+
+        self.chain.append(self.block_candidates[0])
 
     def check_duplicate(self, values):
         # Check if dict values has been received in the past x seconds
@@ -438,27 +488,33 @@ def median_ts(block):
     timestamps = [
         ping['timestamp'] for ping in block['list']
     ]
-    return datetime.fromtimestamp(median(timestamps))
+    return median(timestamps)
 
 
+def validate_block_timestamp(block):
+    if utcnow() - median_ts(block) >= 5 * 60:
+        return True
+    else:
+        return False
+
+
+# To replace collect_worker
 def forge_worker():
     while True:
-        if clockchain.added_ping:
-            curr_collect_hash = clockchain.current_chainhash()
+        time.sleep(5)
+        current_block = {'pool': clockchain.pingpool}
+        if clockchain.validate_block(current_block):
+            current_block['current_block_ref'] = clockchain.current_chainhash()
+            current_block['signature'] = sign(
+                standard_encode(current_block),
+                clockchain.privkey
+            )
 
-            ping_list = list(clockchain.pingpool.values())
+            # Forward to peers
+            clockchain.forward(current_block, 'block', clockchain.addr)
 
-            if len(ping_list) == 0:
-                clockchain.restart_collect()
-                logger.error(
-                    "Got signalled it was found before me.. putting own hash again.. (via len pinglist)")
-                continue
-
-            if curr_collect_hash != clockchain.current_chainhash():  # Restart
-                logger.error(
-                    "Got signalled it was found before me.. putting own hash again.. (via currblock diff)")
-                clockchain.restart_collect()
-                continue
+            # Add to own chain and restart ping blocking
+            clockchain.tick()
 
 
 # TODO: When two solutions found by 2 verifiers at the same time, the network splits
@@ -514,7 +570,7 @@ def collect_worker():
 
                 # Validate own collect
                 validation_result = clockchain.validate_collect(collect)
-                print(collect)
+
                 if not validation_result:
                     logger.debug("Failed own collect validation")
                     continue  # Skip to next iteration of while loop
@@ -694,11 +750,11 @@ if __name__ == '__main__':
 
     join_network_thread = threading.Thread(target=join_network_worker)
     ping_thread = threading.Thread(target=ping_worker)
-    collect_thread = threading.Thread(target=collect_worker)
+    forge_thread = threading.Thread(target=forge_worker)
 
     join_network_thread.start()
     ping_thread.start()
-    collect_thread.start()
+    forge_thread.start()
 
     # Try ports until one succeeds
     while True:
