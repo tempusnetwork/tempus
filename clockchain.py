@@ -18,6 +18,8 @@ import socket
 import copy
 from ecdsa import BadSignatureError
 import os
+from statistics import median
+from datetime import datetime
 
 from pki import get_kp, pubkey_to_addr, sign, verify
 
@@ -59,11 +61,12 @@ def validate_schema(dictionary, schema):
     return True
 
 
-# TODO: Fix stupid rehashing done when wanting a list... the recursion is done way too many times!
+# TODO: Fix stupid rehashing done when wanting a list... the recursion is
+# done way too many times!
 def hash(content, times=1):
     encoded = standard_encode(content)
     if times > 1:  # Repeated hash for ping calculation
-        return hash(hashlib.sha256(encoded).hexdigest(), times-1)
+        return hash(hashlib.sha256(encoded).hexdigest(), times - 1)
     elif times == 0:
         return content
     else:
@@ -73,11 +76,11 @@ def hash(content, times=1):
 def similar(a, b):
     total = 0
     for i in range(64):
-        total += abs(int(a[i], 16)-int(b[i], 16))
+        total += abs(int(a[i], 16) - int(b[i], 16))
 
-    maximum = 15*64
-    fraction = total/maximum
-    similarity = 1-fraction
+    maximum = 15 * 64
+    fraction = total / maximum
+    similarity = 1 - fraction
 
     return similarity
 
@@ -109,8 +112,9 @@ def evaluate_collection_hashes(collection, permuted):
     spread = stdev(sims)
 
     # TODO: Find other solution than using log length of list - this incentivizes spam!!
-    # TODO: You put it there temporarily because just avg*spread was higher for smaller lists, which is undesirable
-    score = avg*spread*log(len(permuted))
+    # TODO: You put it there temporarily because just avg*spread was higher
+    # for smaller lists, which is undesirable
+    score = avg * spread * log(len(permuted))
     return score
 
 
@@ -118,13 +122,15 @@ def smart_permute_list(items_list):
     length = len(items_list)
     indices = [i for i in range(length)]
 
-    # TODO: Permute in clever fashion (box-packing problem?) right now is a random ordering
+    # TODO: Permute in clever fashion (box-packing problem?) right now is a
+    # random ordering
     ordering = sample(indices, length)
     permuted_list = [items_list[i] for i in ordering]
     return permuted_list, ordering
 
 
 class Clockchain(object):
+
     def __init__(self):
         self.chain = []
         self.peers = {}
@@ -155,10 +161,12 @@ class Clockchain(object):
         # Create genesis collect
         # TODO: Re-adapt this to use signatures
         genesis_addr = "tempigFUe1uuRsAQ7WWNpb5r97pDCJ3wp9"
-        self.chain.append({'addr': genesis_addr, 'nonce': 27033568337, 'list': []})
+        self.chain.append(
+            {'addr': genesis_addr, 'nonce': 27033568337, 'list': []})
 
     def check_duplicate(self, values):
-        # Check if dict values has been received in the past x seconds already..
+        # Check if dict values has been received in the past x seconds
+        # already..
         if self.duplicate_cache.get(hash(values)):
             return True
         else:
@@ -219,15 +227,19 @@ class Clockchain(object):
         :return: void
         """
         # TODO: Right now max hops is set to 1.... meaning no redistribution.  Good cause we have full netw connectivity
-        # TODO: However for nonfully connected nodes, > 1 hops needed to fully reach all corners and nodes of network
+        # TODO: However for nonfully connected nodes, > 1 hops needed to fully
+        # reach all corners and nodes of network
 
-        if redistribute < config['max_hops']:  # Dont forward to peers if exceeding certain amount of hops
-            # TODO: What happens if malicious actor fakes the ?addr= ?? or the amount of hops?
+        # Dont forward to peers if exceeding certain amount of hops
+        if redistribute < config['max_hops']:
+            # TODO: What happens if malicious actor fakes the ?addr= ?? or the
+            # amount of hops?
             for peer in self.peers:
                 try:  # Add self.addr in query to identify self to peers
-                    if origin != self.peers[peer]:  # If origin addr is not target peer addr
+                    # If origin addr is not target peer addr
+                    if origin != self.peers[peer]:
                         requests.post(peer + '/forward/' + route + '?addr=' + origin +
-                                      "&redistribute=" + str(redistribute+1), json=data_dict, timeout=config['timeout'])
+                                      "&redistribute=" + str(redistribute + 1), json=data_dict, timeout=config['timeout'])
                 except BaseException:
                     logger.debug(str(sys.exc_info()))
                     pass
@@ -249,11 +261,13 @@ class Clockchain(object):
 
         # Check hash
         if hash(item_copy)[-difficulty:] != "0" * difficulty:
-            logger.debug("Invalid hash for item: " + item_copy + " " + hash(item_copy))
+            logger.debug("Invalid hash for item: " +
+                         item_copy + " " + hash(item_copy))
             return False
 
         # Adding current collect reference, signature will only match if our own and peers collect references match
-        # TODO: Figure out if this messes with consensus mechanism, or enhances it
+        # TODO: Figure out if this messes with consensus mechanism, or enhances
+        # it
         item_copy['current_collect_ref'] = self.current_chainhash()
 
         # Validate signature
@@ -261,8 +275,10 @@ class Clockchain(object):
             if not verify(standard_encode(item_copy), signature, item_copy['pubkey']):
                 return False
         except BadSignatureError:
-            # TODO : When new joiner joins, make sure seeds/new friends relate the latest hash to them..
-            print("Mismatch in signature validation, possibly due to chain split / simultaneous solutions found")
+            # TODO : When new joiner joins, make sure seeds/new friends relate
+            # the latest hash to them..
+            print(
+                "Mismatch in signature validation, possibly due to chain split / simultaneous solutions found")
             return False
 
         return True
@@ -272,7 +288,8 @@ class Clockchain(object):
             logger.debug("Failed schema validation")
             return False
 
-        # Check hash and signature, keeping in mind signature might be popped off
+        # Check hash and signature, keeping in mind signature might be popped
+        # off
         if not self.validate_sig_hash(collect):
             logger.debug("Failed signature and hash checking")
             return False
@@ -285,7 +302,8 @@ class Clockchain(object):
                 return False
 
         # Check that score is high enough
-        score = evaluate_collection_hashes(self.current_chainhash(), collect['list'])
+        score = evaluate_collection_hashes(
+            self.current_chainhash(), collect['list'])
         if score <= config['score_limit']:
             logger.debug("Score below score limit:" + str(score))
             return False
@@ -301,7 +319,8 @@ class Clockchain(object):
             if pubkey_to_addr(ping['pubkey']) in self.pingpool:
                 return False
 
-        # Check hash and signature, keeping in mind signature might be popped off
+        # Check hash and signature, keeping in mind signature might be popped
+        # off
         if not self.validate_sig_hash(ping):
             return False
 
@@ -319,19 +338,23 @@ def send_mutual_add_requests(peers, get_further_peers=False):
             signature = sign(standard_encode(content), clockchain.privkey)
             content['signature'] = signature
             try:
-                response = requests.post(peer + '/mutual_add', json=content, timeout=config['timeout'])
+                response = requests.post(
+                    peer + '/mutual_add', json=content, timeout=config['timeout'])
                 peer_addr = response.text
                 status_code = response.status_code
             except BaseException:
-                logger.debug("no response from peer, did not add: " + str(sys.exc_info()))
+                logger.debug(
+                    "no response from peer, did not add: " + str(sys.exc_info()))
                 continue
             if status_code == 201:
                 clockchain.register_peer(peer, peer_addr)
 
                 # Get all peers of current discovered peers and add to set (set is to avoid duplicates)
-                # Essentially going one degree further out in network. From current peers to their peers
+                # Essentially going one degree further out in network. From
+                # current peers to their peers
                 if get_further_peers:
-                    next_peers = json.loads(requests.get(peer + '/info/peers').text)
+                    next_peers = json.loads(
+                        requests.get(peer + '/info/peers').text)
                     for next_peer in next_peers['peers']:
                         peers_of_peers.add(next_peer)
 
@@ -339,21 +362,25 @@ def send_mutual_add_requests(peers, get_further_peers=False):
 
 
 def join_network_worker():
-    # Sleeping random amount to not have seed-clash (cannot do circular adding of peers at the exact same time as seeds)
-    sleeptime = random.randrange(3000)/1000.0
+    # Sleeping random amount to not have seed-clash (cannot do circular adding
+    # of peers at the exact same time as seeds)
+    sleeptime = random.randrange(3000) / 1000.0
     logger.debug("Sleeping for " + str(sleeptime) + "s before joining network")
     time.sleep(sleeptime)
 
     # First add seeds, and get the seeds peers
-    peers_of_seeds = send_mutual_add_requests(config['seeds'], get_further_peers=True)
+    peers_of_seeds = send_mutual_add_requests(
+        config['seeds'], get_further_peers=True)
 
     # Then add the peers of seeds
     send_mutual_add_requests(peers_of_seeds)
 
     # Above could be done a further step, doing a recursion to discover entire network.
-    # Doing this would make for exponential amount of requests however, so only doing it for 1 hop atm.
+    # Doing this would make for exponential amount of requests however, so
+    # only doing it for 1 hop atm.
 
-    # TODO: Synchronizing latest chain with peers (choosing what the majority has?)
+    # TODO: Synchronizing latest chain with peers (choosing what the majority
+    # has?)
 
     logger.debug("Finished joining network")
 
@@ -362,7 +389,8 @@ def ping_worker():
     while True:
         time.sleep(20)
         if not clockchain.added_ping:
-            logger.debug("Havent pinged network for this round! Starting to mine..")
+            logger.debug(
+                "Havent pinged network for this round! Starting to mine..")
             ping = {'pubkey': clockchain.pubkey}
             _, nonce = mine(ping)
             ping['nonce'] = nonce
@@ -375,7 +403,8 @@ def ping_worker():
             ping.pop('current_collect_ref', None)
 
             # Validate own ping
-            validation_result = clockchain.validate_ping(ping, check_in_pool=True)
+            validation_result = clockchain.validate_ping(
+                ping, check_in_pool=True)
 
             if not validation_result:
                 logger.debug("Failed own ping validation")
@@ -383,7 +412,8 @@ def ping_worker():
 
             # Add to pool
             addr = pubkey_to_addr(ping['pubkey'])
-            clockchain.pingpool[addr] = {"nonce": nonce, "signature": signature, "pubkey": clockchain.pubkey}
+            clockchain.pingpool[addr] = {
+                "nonce": nonce, "signature": signature, "pubkey": clockchain.pubkey}
 
             clockchain.added_ping = True
 
@@ -392,8 +422,36 @@ def ping_worker():
             logger.debug("Forwarded own ping: " + str(ping))
 
 
+def median_ts(block):
+    timestamps = [
+        ping['timestamp'] for ping in block['list']
+    ]
+    return datetime.fromtimestamp(median(timestamps))
+
+
+def forge_worker():
+    while True:
+        if clockchain.added_ping:
+            curr_collect_hash = clockchain.current_chainhash()
+
+            ping_list = list(clockchain.pingpool.values())
+
+            if len(ping_list) == 0:
+                clockchain.restart_collect()
+                logger.error(
+                    "Got signalled it was found before me.. putting own hash again.. (via len pinglist)")
+                continue
+
+            if curr_collect_hash != clockchain.current_chainhash():  # Restart
+                logger.error(
+                    "Got signalled it was found before me.. putting own hash again.. (via currblock diff)")
+                clockchain.restart_collect()
+                continue
+
+
 # TODO: When two solutions found by 2 verifiers at the same time, the network splits
-# TODO: Need to design consensus mechanism - splitting network halves the pings??
+# TODO: Need to design consensus mechanism - splitting network halves the
+# pings??
 
 # TODO: If ping is inserted which makes everyone find a viable solution, everybody floods network with that solution
 # TODO: So need to fix that somehow
@@ -406,11 +464,14 @@ def collect_worker():
 
             if len(ping_list) == 0:
                 clockchain.restart_collect()
-                logger.error("Got signalled it was found before me.. putting own hash again.. (via len pinglist)")
+                logger.error(
+                    "Got signalled it was found before me.. putting own hash again.. (via len pinglist)")
                 continue
 
-            # set include_own_ping=False because my ping is included already in the collect
-            hashes_list = clockchain.get_pingpool_hashes_list(ping_dict=clockchain.pingpool, include_own_ping=False)
+            # set include_own_ping=False because my ping is included already in
+            # the collect
+            hashes_list = clockchain.get_pingpool_hashes_list(
+                ping_dict=clockchain.pingpool, include_own_ping=False)
 
             _, ordering = smart_permute_list(hashes_list)
 
@@ -421,11 +482,13 @@ def collect_worker():
             _, candidate_nonce = mine(collect)
 
             if curr_collect_hash != clockchain.current_chainhash():  # Restart
-                logger.error("Got signalled it was found before me.. putting own hash again.. (via currblock diff)")
+                logger.error(
+                    "Got signalled it was found before me.. putting own hash again.. (via currblock diff)")
                 clockchain.restart_collect()
                 continue
 
-            score = evaluate_collection_hashes(curr_collect_hash, permuted_ping_list)
+            score = evaluate_collection_hashes(
+                curr_collect_hash, permuted_ping_list)
 
             if score > config['score_limit']:
 
@@ -433,7 +496,8 @@ def collect_worker():
 
                 # Add and remove current hash to make signature
                 collect['current_collect_ref'] = clockchain.current_chainhash()
-                collect['signature'] = sign(standard_encode(collect), clockchain.privkey)
+                collect['signature'] = sign(
+                    standard_encode(collect), clockchain.privkey)
                 collect.pop('current_collect_ref', None)
 
                 # Validate own collect
@@ -443,7 +507,8 @@ def collect_worker():
                     logger.debug("Failed own collect validation")
                     continue  # Skip to next iteration of while loop
 
-                logger.debug("Solved collect of size " + str(len(permuted_ping_list)) + ", with contents " + str(collect))
+                logger.debug("Solved collect of size " +
+                             str(len(permuted_ping_list)) + ", with contents " + str(collect))
 
                 # Add to own chain and restart ping collecting
                 clockchain.chain.append(collect)
@@ -463,7 +528,8 @@ def collect_worker():
 app = Flask(__name__)
 
 logger = logging.getLogger(__name__)
-coloredlogs.install(level='DEBUG', logger=logger, fmt='(%(threadName)-10s) %(message)s')
+coloredlogs.install(level='DEBUG', logger=logger,
+                    fmt='(%(threadName)-10s) %(message)s')
 
 
 # Instantiate the clockchain
@@ -492,7 +558,8 @@ def forward_collect():
     redistribute = int(request.args.get('redistribute'))
     if redistribute:
         origin = request.args.get('addr')
-        clockchain.forward(collect, 'collect', origin, redistribute=redistribute)
+        clockchain.forward(collect, 'collect', origin,
+                           redistribute=redistribute)
 
     return "Added collect", 201
 
@@ -513,7 +580,8 @@ def forward_ping():
     clockchain.pingpool[addr] = ping
 
     # TODO: Why would anyone forward others pings? Only incentivized to forward own pings (to get highest uptime)
-    # TODO: Partially solved by the need to have at least as many pings as previous collect
+    # TODO: Partially solved by the need to have at least as many pings as
+    # previous collect
 
     redistribute = int(request.args.get('redistribute'))
     if redistribute:
@@ -524,7 +592,8 @@ def forward_ping():
 
 
 # TODO: Create a dns seed with a clone from https://github.com/sipa/bitcoin-seeder
-# TODO: See also https://bitcoin.stackexchange.com/questions/3536/how-do-bitcoin-clients-find-each-other/11273
+# TODO: See also
+# https://bitcoin.stackexchange.com/questions/3536/how-do-bitcoin-clients-find-each-other/11273
 @app.route('/mutual_add', methods=['POST'])
 def mutual_add():
     values = request.get_json()
@@ -539,7 +608,8 @@ def mutual_add():
         return "Invalid signature", 400
 
     # TODO: What if rogue peer sends fake port? Can do a mirror ddos?
-    remote_port = int(values.get('port'))  # TODO: Do schema validation for integer sizes / string lengths..
+    # TODO: Do schema validation for integer sizes / string lengths..
+    remote_port = int(values.get('port'))
 
     remote_url = resolve(request.remote_addr)
     remote_url = "http://" + remote_url + ":" + str(remote_port)
@@ -547,11 +617,13 @@ def mutual_add():
     remote_cleaned_url = urlparse(remote_url).netloc
     own_cleaned_url = urlparse(request.url_root).netloc
 
-    # TODO: Add signature validation here? to make sure peer is who they say they are..
+    # TODO: Add signature validation here? to make sure peer is who they say
+    # they are..
     if remote_cleaned_url != own_cleaned_url:  # Avoid inf loop by not adding self..
         addr = requests.get(remote_url + '/info/addr').text
 
-        # Verify that the host's address matches the key pair used to sign the mutual_add request
+        # Verify that the host's address matches the key pair used to sign the
+        # mutual_add request
         if not pubkey_to_addr(values['pubkey']) == addr:
             print("Received mutual_add request signed with key not matching host")
             return "Signature does not match address of provided host", 400
@@ -603,7 +675,8 @@ if __name__ == '__main__':
     from argparse import ArgumentParser
 
     parser = ArgumentParser()
-    parser.add_argument('-p', '--port', default=5000, type=int, help='port to listen on')
+    parser.add_argument('-p', '--port', default=5000,
+                        type=int, help='port to listen on')
     args = parser.parse_args()
     port = args.port
 
@@ -621,5 +694,5 @@ if __name__ == '__main__':
             app.run(host='127.0.0.1', port=port)
             break
         except OSError:
-            port = port+1
+            port = port + 1
             pass
