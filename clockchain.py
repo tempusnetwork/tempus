@@ -25,6 +25,13 @@ from pki import get_kp, pubkey_to_addr, sign, verify
 
 from expiringdict import ExpiringDict
 
+import pytz
+
+
+def utcnow():
+    return datetime.now(tz=pytz.utc).timestamp()
+
+
 # Set current working directory to the directory of this file
 dir_path = os.path.dirname(os.path.realpath(__file__))
 os.chdir(dir_path)
