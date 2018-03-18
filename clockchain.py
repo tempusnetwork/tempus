@@ -453,7 +453,10 @@ def ping_worker():
         if not clockchain.added_ping:
             logger.debug(
                 "Havent pinged network for this round! Starting to mine..")
-            ping = {'pubkey': clockchain.pubkey}
+            ping = {
+                'pubkey': clockchain.pubkey,
+                'timestamp': utcnow()
+            }
             _, nonce = mine(ping)
             ping['nonce'] = nonce
 
@@ -461,8 +464,6 @@ def ping_worker():
             ping['current_collect_ref'] = clockchain.current_chainhash()
             signature = sign(standard_encode(ping), clockchain.privkey)
             ping['signature'] = signature
-
-            ping.pop('current_collect_ref', None)
 
             # Validate own ping
             validation_result = clockchain.validate_ping(
@@ -474,8 +475,7 @@ def ping_worker():
 
             # Add to pool
             addr = pubkey_to_addr(ping['pubkey'])
-            clockchain.pingpool[addr] = {
-                "nonce": nonce, "signature": signature, "pubkey": clockchain.pubkey}
+            clockchain.pingpool[addr] = ping
 
             clockchain.added_ping = True
 
