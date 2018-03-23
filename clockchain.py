@@ -399,6 +399,7 @@ class Clockchain(object):
             logger.debug("Could not find signature in validate sighash..")
             return False
 
+        print(self.current_chainhash(), item_copy, hash(item_copy))
         # Check hash
         if hash(item_copy)[-difficulty:] != "0" * difficulty:
             logger.debug("Invalid hash for item: " +
@@ -492,11 +493,13 @@ def send_mutual_add_requests(peers, get_further_peers=False):
                     peer + '/mutual_add', json=content, timeout=config['timeout'])
                 peer_addr = response.text
                 status_code = response.status_code
+                logger.info(str(peer_addr) + str(status_code))
             except BaseException:
                 logger.debug(
                     "no response from peer, did not add: " + str(sys.exc_info()))
                 continue
             if status_code == 201:
+                logger.info("Adding peer " + str(peer))
                 clockchain.register_peer(peer, peer_addr)
 
                 # Get all peers of current discovered peers and add to set (set is to avoid duplicates)
@@ -524,6 +527,8 @@ def join_network_worker():
 
     # Then add the peers of seeds
     send_mutual_add_requests(peers_of_seeds)
+
+    logger.debug("Peers: " + str(clockchain.peers))
 
     # Above could be done a further step, doing a recursion to discover entire network.
     # Doing this would make for exponential amount of requests however, so
@@ -563,7 +568,7 @@ def ping_worker():
                     logger.debug("Forwarded alt ping: " + str(ping))
         if not clockchain.added_ping:
             logger.debug(
-                "Havent pinged network for this round! Starting to mine..")
+                "(ping_worker) Haven't pinged yet, starting...")
             ping = {
                 'pubkey': clockchain.pubkey,
                 'timestamp': utcnow()
@@ -592,7 +597,7 @@ def ping_worker():
 
             # Forward to peers
             clockchain.forward(ping, 'ping', clockchain.addr)
-            logger.debug("Forwarded own ping: " + str(ping))
+            logger.debug("(ping_worker) Forwarded own ping: " + str(ping))
 
 
 def median_ts(block):
@@ -712,7 +717,11 @@ def collect_worker():
                 # Add to own chain and restart ping collecting
                 clockchain.chain.append(collect)
 
+                logger.debug("Restarting")
+
                 clockchain.restart_collect()
+
+                logger.debug("Forwarding")
 
                 # Forward to peers
                 clockchain.forward(collect, 'collect', clockchain.addr)
