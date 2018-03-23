@@ -1,2 +1,4 @@
+SHELL:=/bin/bash
+
 test:
-	PYTHONPATH=. pytest tests
+	source venv/bin/activate; PYTHONPATH=. pytest tests
