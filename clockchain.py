@@ -809,13 +809,6 @@ def forward_ping():
 
     validation_result = clockchain.validate_ping(ping, check_in_pool=True)
 
-    if not validation_result:
-        return "Invalid ping", 400
-
-    # Add to pool
-    addr = pubkey_to_addr(ping['pubkey'])
-    clockchain.pingpool[addr] = ping
-
     # TODO: Why would anyone forward others pings? Only incentivized to forward own pings (to get highest uptime)
     # TODO: Partially solved by the need to have at least as many pings as
     # previous collect
@@ -825,7 +818,13 @@ def forward_ping():
         origin = request.args.get('addr')
         clockchain.forward(ping, 'ping', origin, redistribute=redistribute)
 
-    return "Added ping", 201
+    if validation_result:
+        # Add to pool
+        addr = pubkey_to_addr(ping['pubkey'])
+        clockchain.pingpool[addr] = ping
+        return "Added ping", 201
+    else:
+        return "Ping not validated", 400
 
 
 # TODO: Create a dns seed with a clone from https://github.com/sipa/bitcoin-seeder
