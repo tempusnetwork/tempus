@@ -179,10 +179,13 @@ class Clockchain(object):
             {'addr': genesis_addr, 'nonce': 27033568337, 'list': []})
 
     def block_continuity(self, block):
-        previous_addresses = set(self.chain[-1]['pool'].keys())
-        current_addresses = set(block['pool'].keys())
+        previous_addresses = set([ping['pubkey'] for ping in self.chain[-1]['list']])
+        current_addresses = set([ping['pubkey'] for ping in block['list']])
         common_addresses = previous_addresses.intersection(current_addresses)
-        return len(common_addresses) / len(previous_addresses)
+        if len(previous_addresses) > 0:
+            return len(common_addresses) / len(previous_addresses)
+        else:
+            return 1
 
     def validate_block_continuity(self, block):
         if len(self.chain) == 1:
