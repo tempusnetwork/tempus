@@ -190,14 +190,17 @@ class Clockchain(object):
     def validate_block_continuity(self, block):
         if len(self.chain) == 1:
             return True
-        if self.block_continuity(block) > 0.8:
+        logger.debug("Block continuity: " + str(self.block_continuity(block)))
+        if self.block_continuity(block) > 0.5:
             return True
         return False
 
     def validate_block(self, block):
-        if not self.validate_block_continuity(block):
-            return False
-        if not self.validate_block_timestamp(block):
+        #if not self.validate_block_continuity(block):
+        #    logger.info("Block failed continuity validation")
+        #    return False
+        if not validate_block_timestamp(block):
+            logger.info("Block failed timestamp validation")
             return False
         return True
 
