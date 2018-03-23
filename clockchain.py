@@ -275,6 +275,10 @@ class Clockchain(object):
                     if peer == forked_peer:
                         self.get_and_replace_chain(netloc)
                         altchain_found = True
+                    if altchain_found:
+                        break
+                if altchain_found:
+                    break
             if not altchain_found:
                 logger.info("Could not find peer to contact for altchain, waiting a round")
                 self.chain.append(candidate_block)
