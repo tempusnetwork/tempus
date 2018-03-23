@@ -334,6 +334,26 @@ class Clockchain(object):
         self.added_ping = False
         self.pingpool = {}
 
+    def validate_sig(self, item):
+        item_copy = copy.deepcopy(item)
+        signature = item_copy.pop('signature', None)
+        if signature is None:
+            logger.debug("Could not find signature in validate sighash..")
+            return False
+
+        # Validate signature
+        try:
+            if not verify(standard_encode(item_copy), signature, item_copy['pubkey']):
+                return False
+        except BadSignatureError:
+            # TODO : When new joiner joins, make sure seeds/new friends relate
+            # the latest hash to them..
+            print(
+                "Mismatch in signature validation, possibly due to chain split / simultaneous solutions found")
+            return False
+
+        return True
+
     def validate_sig_hash(self, item):
         item_copy = copy.deepcopy(item)
         signature = item_copy.pop('signature', None)
