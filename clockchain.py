@@ -217,7 +217,14 @@ class Clockchain(object):
             if func(candidate) == max_val
         ]
 
-    def tick(self, candidate_block):
+    def get_and_replace_chain(self, netloc):
+        logger.info("(get_and_replace_chain) Getting altchain...")
+        altchain = json.loads(requests.get(netloc + '/info/clockchain').text)['chain']
+        logger.info("Received altchain: " + json.dumps(altchain))
+        self.chain = altchain
+        self.forked_hashes = {}
+
+    def tick(self, candidate_block=None):
         time.sleep(self.grace_period)
         self.block_candidates.append(candidate_block)
 
