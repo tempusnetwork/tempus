@@ -744,6 +744,35 @@ coloredlogs.install(level='DEBUG', logger=logger,
 clockchain = Clockchain()
 
 
+# To replace /forward/collect
+@app.route('/forward/block', methods=['POST'])
+def forward_block():
+    block = request.get_json()
+
+    if clockchain.check_duplicate(block):
+        return "duplicate request please wait 10s", 400
+
+    validation_result = clockchain.validate_block(block)
+
+    if not validation_result:
+        return "Invalid block", 400
+
+    # TODO: Sanitize this input..
+    redistribute = int(request.args.get('redistribute'))
+    origin = request.args.get('addr')
+    if redistribute:
+        clockchain.forward(block, 'block', origin,
+                           redistribute=redistribute)
+
+    if not block['current_collect_ref'] == clockchain.current_chainhash():
+        clockchain.add_hash_to_forks(block['current_collect_ref'], origin)
+
+    if clockchain.validate_block(block):
+        clockchain.block_candidates.append(block)
+
+    return "Added block", 201
+
+
 # TODO: Need to add rogue client which tries to attack the network in as many ways as possible
 # TODO: This is to learn how to make the network more robust and failsafe
 @app.route('/forward/collect', methods=['POST'])
