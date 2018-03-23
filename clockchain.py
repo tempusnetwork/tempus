@@ -85,6 +85,10 @@ def hash_sum(content):
     return sum([int(digit, 16) for digit in content_hash])
 
 
+def num_pings(block):
+    return len(block['list'])
+
+
 def similar(a, b):
     total = 0
     for i in range(64):
@@ -227,6 +231,9 @@ class Clockchain(object):
     def tick(self, candidate_block=None):
         time.sleep(self.grace_period)
         self.block_candidates.append(candidate_block)
+
+        if len(self.block_candidates) > 1:
+            self.purge_by(num_pings)
 
         if len(self.block_candidates) > 1:
             self.purge_by(block_continuity)
