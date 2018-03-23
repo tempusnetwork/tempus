@@ -538,6 +538,29 @@ def join_network_worker():
 def ping_worker():
     while True:
         time.sleep(20)
+        if len(clockchain.forked_hashes) > 0:
+            logger.info("(ping_worker) Alternative hashes found on network")
+            for hash, peers in clockchain.forked_hashes.items():
+                if len(peers) > 10:
+                    logger.info(
+                        "(ping_worker) Alternative hash found with"
+                        " significant number of pings; sending altping")
+
+                    ping = {
+                        'pubkey': clockchain.pubkey,
+                        'timestamp': utcnow()
+                    }
+                    _, nonce = mine(ping)
+                    ping['nonce'] = nonce
+
+                    # Add and remove current hash to make signature
+                    ping['current_block_ref'] = hash
+                    signature = sign(standard_encode(ping), clockchain.privkey)
+                    ping['signature'] = signature
+
+                    # Forward to peers
+                    clockchain.forward(ping, 'ping', clockchain.addr)
+                    logger.debug("Forwarded alt ping: " + str(ping))
         if not clockchain.added_ping:
             logger.debug(
                 "Havent pinged network for this round! Starting to mine..")
@@ -549,7 +572,7 @@ def ping_worker():
             ping['nonce'] = nonce
 
             # Add and remove current hash to make signature
-            ping['current_collect_ref'] = clockchain.current_chainhash()
+            ping['current_block_ref'] = clockchain.current_chainhash()
             signature = sign(standard_encode(ping), clockchain.privkey)
             ping['signature'] = signature
 
