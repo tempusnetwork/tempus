@@ -152,7 +152,7 @@ class Clockchain(object):
         self.peers = {}
         self.pingpool = {}
         self.added_ping = False
-        self.grace_period = 1 * 60
+        self.grace_period = 1 * 20
         self.block_candidates = []
         self.forked_hashes = {}
 
@@ -543,7 +543,7 @@ def median_ts(block):
 
 
 def validate_block_timestamp(block):
-    if utcnow() - median_ts(block) >= 5 * 60:
+    if utcnow() - median_ts(block) >= 1 * 30:
         return True
     else:
         return False
