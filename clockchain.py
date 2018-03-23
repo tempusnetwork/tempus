@@ -154,6 +154,7 @@ class Clockchain(object):
         self.added_ping = False
         self.grace_period = 1 * 60
         self.block_candidates = []
+        self.forked_hashes = {}
 
         # cache to avoid processing duplicate json forwards
         self.duplicate_cache = ExpiringDict(max_len=config['expiring_dict_max_len'],
@@ -412,6 +413,11 @@ class Clockchain(object):
 
         return True
 
+    def add_hash_to_forks(self, hash, peer_addr):
+        if hash not in self.forked_hashes.keys():
+            self.forked_hashes[hash] = []
+        self.forked_hashes[hash].append(peer_addr)
+
     def validate_ping(self, ping, check_in_pool=True):
         if not validate_schema(ping, dir_path + '/schemas/ping_schema.json'):
             return False
@@ -423,7 +429,12 @@ class Clockchain(object):
 
         # Check hash and signature, keeping in mind signature might be popped
         # off
-        if not self.validate_sig_hash(ping):
+        if not self.validate_sig(ping):
+            return False
+
+        if not ping['current_block_ref'] == self.current_chainhash():
+            self.add_hash_to_forks(ping['current_block_ref'], pubkey_to_addr(ping['pubkey']))
+            logger.info('Ping detected referencing different hash; tracking')
             return False
 
         return True
