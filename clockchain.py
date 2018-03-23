@@ -615,19 +615,37 @@ def validate_block_timestamp(block):
 def forge_worker():
     while True:
         time.sleep(5)
-        current_block = {'pool': clockchain.pingpool}
+        logger.info("(forge_worker) Checking pingpool")
+        if len(list(clockchain.pingpool.values())) == 0:
+            logger.info("(forge_worker) No pings, waiting")
+            continue
+        logger.info("(forge_worker) Pingpool not empty, building block")
+        current_block = {
+            'pubkey': clockchain.pubkey,
+            'list': list(clockchain.pingpool.values())
+        }
+        logger.info("(forge_worker) Checking if block is ready to forward")
         if clockchain.validate_block(current_block):
-            current_block['current_block_ref'] = clockchain.current_chainhash()
+            logger.info("(forge_worker) Timestamp and pings validated, building")
+            current_block['current_collect_ref'] = clockchain.current_chainhash()
             current_block['signature'] = sign(
                 standard_encode(current_block),
                 clockchain.privkey
             )
 
             # Forward to peers
+            logger.info("(forge_worker) Forwarding my block")
             clockchain.forward(current_block, 'block', clockchain.addr)
 
             # Add to own chain and restart ping blocking
+            logger.info("(forge_worker) Starting tick procedure")
+            clockchain.tick(current_block)
+        elif len(clockchain.block_candidates) > 0:
+            logger.info("(forge_worker) Received valid block, starting tick procedure")
             clockchain.tick()
+        else:
+            logger.info("(forge_worker) No valid blocks yet, waiting")
+
 
 
 # TODO: When two solutions found by 2 verifiers at the same time, the network splits
