@@ -603,6 +603,8 @@ def median_ts(block):
 
 
 def validate_block_timestamp(block):
+    if len(block['list']) == 0:
+        return True
     if utcnow() - median_ts(block) >= 1 * 30:
         return True
     else:
