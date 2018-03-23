@@ -201,9 +201,9 @@ class Clockchain(object):
         return False
 
     def validate_block(self, block):
-        #if not self.validate_block_continuity(block):
-        #    logger.info("Block failed continuity validation")
-        #    return False
+        if not self.validate_block_continuity(block):
+            logger.info("Block failed continuity validation")
+            return False
         if not validate_block_timestamp(block):
             logger.info("Block failed timestamp validation")
             return False
