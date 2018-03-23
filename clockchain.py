@@ -230,14 +230,22 @@ class Clockchain(object):
         self.forked_hashes = {}
 
     def tick(self, candidate_block=None):
+        logger.info("The past increases, the future recedes...")
         time.sleep(self.grace_period)
-        self.block_candidates.append(candidate_block)
+        if candidate_block is not None and self.validate_block(candidate_block):
+            self.block_candidates.append(candidate_block)
+
+        logger.info(
+            "Comparing " + 
+            str(len(self.block_candidates)) +
+            " block candidates"
+        )
 
         if len(self.block_candidates) > 1:
             self.purge_by(num_pings)
 
         if len(self.block_candidates) > 1:
-            self.purge_by(block_continuity)
+            self.purge_by(self.block_continuity)
 
         if len(self.block_candidates) > 1:
             self.purge_by(median_ts)
@@ -245,7 +253,35 @@ class Clockchain(object):
         if len(self.block_candidates) > 1:
             self.purge_by(hash_sum)
 
-        self.chain.append(self.block_candidates[0])
+        logger.info(
+            "Candidates purged, " + 
+            str(len(self.block_candidates)) + 
+            " candidates remaining"
+        )
+
+        winning_block = self.block_candidates[0]
+
+        if winning_block['current_collect_ref'] == self.current_chainhash():
+            logger.info("Chosen candidate fits chain, appending")
+            self.chain.append(winning_block)
+        else:
+            logger.info("Chosen candidate belongs to a fork, getting altchain")
+            forked_peers = self.forked_hashes[winning_block['current_collect_ref']]
+            logger.info("Forked peer: " + str(forked_peers))
+            logger.info("Peers: " + str(self.peers))
+            altchain_found = False
+            for forked_peer in forked_peers:
+                for netloc, peer in self.peers.items():
+                    if peer == forked_peer:
+                        self.get_and_replace_chain(netloc)
+                        altchain_found = True
+            if not altchain_found:
+                logger.info("Could not find peer to contact for altchain, waiting a round")
+                self.chain.append(candidate_block)
+
+        logger.info("Candidate chosen, restarting ping collection")
+
+        self.restart_collect()
 
     def check_duplicate(self, values):
         # Check if dict values has been received in the past x seconds
@@ -334,6 +370,7 @@ class Clockchain(object):
     def restart_collect(self):
         self.added_ping = False
         self.pingpool = {}
+        self.block_candidates = []
 
     def validate_sig(self, item):
         item_copy = copy.deepcopy(item)
