@@ -1,28 +1,27 @@
+import copy
 import hashlib
 import json
+import logging
+import os
 import random
-from urllib.parse import urlparse
+import socket
 import sys
 import threading
+import time
 import traceback
+from datetime import datetime
+from statistics import median
+from urllib.parse import urlparse
+
+import coloredlogs
+import pytz
 import requests
+from ecdsa import BadSignatureError
+from expiringdict import ExpiringDict
 from flask import Flask, jsonify, request
 from jsonschema import validate
-import time
-import coloredlogs
-import logging
-import socket
-import copy
-from ecdsa import BadSignatureError
-import os
-from statistics import median
-from datetime import datetime
 
 from pki import get_kp, pubkey_to_addr, sign, verify
-
-from expiringdict import ExpiringDict
-
-import pytz
 
 
 def utcnow():
