@@ -418,7 +418,8 @@ class Clockchain(object):
         if not ping['current_block_ref'] == self.current_chainhash():
             self.add_hash_to_forks(
                 ping['current_block_ref'], pubkey_to_addr(ping['pubkey']))
-            logger.info('Ping detected referencing different hash; tracking')
+            logger.info('(validate_ping) Ping detected referencing different '
+                        'hash; tracking')
             return False
 
         return True
@@ -471,7 +472,8 @@ def join_network_worker():
     # Sleeping random amount to not have seed-clash (cannot do circular adding
     # of peers at the exact same time as seeds)
     sleeptime = random.randrange(3000) / 1000.0
-    logger.debug("Sleeping for " + str(sleeptime) + "s before joining network")
+    logger.debug("(join_network_worker) Sleeping for " + str(sleeptime) +
+                 "s before joining network")
     time.sleep(sleeptime)
 
     # First add seeds, and get the seeds peers
@@ -481,7 +483,7 @@ def join_network_worker():
     # Then add the peers of seeds
     send_mutual_add_requests(peers_of_seeds)
 
-    logger.debug("Peers: " + str(clockchain.peers))
+    logger.debug("(join_network_worker) Peers: " + str(clockchain.peers))
 
     # Above could be done a further step, doing a recursion to
     # discover entire network.
@@ -491,7 +493,7 @@ def join_network_worker():
     # TODO: Synchronizing latest chain with peers (choosing what the majority
     # has?)
 
-    logger.debug("Finished joining network")
+    logger.debug("(join_network_worker) Finished joining network")
 
 
 def ping_worker():
@@ -519,7 +521,8 @@ def ping_worker():
 
                     # Forward to peers
                     clockchain.forward(ping, 'ping', clockchain.addr)
-                    logger.debug("Forwarded alt ping: " + str(ping))
+                    logger.debug("(ping_worker) Forwarded alt ping: " +
+                                 str(ping))
         if not clockchain.added_ping:
             logger.debug(
                 "(ping_worker) Haven't pinged yet, starting...")
@@ -540,7 +543,7 @@ def ping_worker():
                 ping, check_in_pool=True)
 
             if not validation_result:
-                logger.debug("Failed own ping validation")
+                logger.debug("(ping_worker) Failed own ping validation")
                 continue  # Skip to next iteration of while loop
 
             # Add to pool
