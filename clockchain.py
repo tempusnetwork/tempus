@@ -88,8 +88,8 @@ def hash_sum(content):
     return sum([int(digit, 16) for digit in content_hash])
 
 
-def num_pings(block):
-    return len(block['list'])
+def num_pings(tick):
+    return len(tick['list'])
 
 
 def similar(a, b):
@@ -124,7 +124,7 @@ class Clockchain(object):
         self.pingpool = {}
         self.added_ping = False
         self.grace_period = 1 * 20
-        self.block_candidates = []
+        self.tick_candidates = []
         self.forked_hashes = {}
 
         # cache to avoid processing duplicate json forwards
@@ -133,7 +133,7 @@ class Clockchain(object):
             max_age_seconds=config['expiring_dict_max_age'])
 
         # TODO: Figure out how to decide common genesis
-        # block if all start with diff hashes..
+        # tick if all start with diff hashes..
         # Use reward address as identifier for this node
         if config['generate_rand_addr']:
             self.pubkey, self.privkey = get_kp()
@@ -158,51 +158,51 @@ class Clockchain(object):
         self.chain.append(
             {'addr': genesis_addr, 'nonce': 27033568337, 'list': []})
 
-    def block_continuity(self, block):
+    def tick_continuity(self, tick):
         # TODO validate with schema
-        if block is None:
+        if tick is None:
             return 0
         previous_addresses = set([ping['pubkey']
                                   for ping in self.chain[-1]['list']])
-        current_addresses = set([ping['pubkey'] for ping in block['list']])
+        current_addresses = set([ping['pubkey'] for ping in tick['list']])
         common_addresses = previous_addresses.intersection(current_addresses)
         if len(previous_addresses) > 0:
             return len(common_addresses) / len(previous_addresses)
         else:
             return 1
 
-    def validate_block_continuity(self, block):
+    def validate_tick_continuity(self, tick):
         # TODO validate with schema
-        if block is None:
+        if tick is None:
             return False
         if len(self.chain) == 1:
             return True
-        logger.debug("(validate_block_continuity) Block continuity: " +
-                     str(self.block_continuity(block)))
-        if self.block_continuity(block) > 0.5:
+        logger.debug("(validate_tick_continuity) tick continuity: " +
+                     str(self.tick_continuity(tick)))
+        if self.tick_continuity(tick) > 0.5:
             return True
         return False
 
-    def validate_block(self, block):
+    def validate_tick(self, tick):
         # TODO validate with schema
-        if not self.validate_block_continuity(block):
-            logger.info("(validate_block) Block failed continuity validation")
+        if not self.validate_tick_continuity(tick):
+            logger.info("(validate_tick) tick failed continuity validation")
             return False
-        if not validate_block_timestamp(block):
-            logger.info("(validate_block) Block failed timestamp validation")
+        if not validate_tick_timestamp(tick):
+            logger.info("(validate_tick) tick failed timestamp validation")
             return False
         return True
 
     def purge_by(self, func):
         max_val = func(
             max(
-                self.block_candidates,
+                self.tick_candidates,
                 key=func
             )
         )
-        self.block_candidates = [
+        self.tick_candidates = [
             candidate
-            for candidate in self.block_candidates
+            for candidate in self.tick_candidates
             if func(candidate) == max_val
         ]
 
@@ -216,45 +216,45 @@ class Clockchain(object):
         self.chain = altchain
         self.forked_hashes = {}
 
-    def tick_forward(self, candidate_block=None):
+    def tick_forward(self, candidate_tick=None):
         logger.info("The past increases, the future recedes...")
         time.sleep(self.grace_period)
-        block_validated = self.validate_block(candidate_block)
-        if candidate_block is not None and block_validated:
-            self.block_candidates.append(candidate_block)
+        tick_validated = self.validate_tick(candidate_tick)
+        if candidate_tick is not None and tick_validated:
+            self.tick_candidates.append(candidate_tick)
 
         logger.info("Comparing " +
-                    str(len(self.block_candidates)) +
-                    " block candidates"
+                    str(len(self.tick_candidates)) +
+                    " tick candidates"
                     )
 
-        if len(self.block_candidates) > 1:
+        if len(self.tick_candidates) > 1:
             self.purge_by(num_pings)
 
-        if len(self.block_candidates) > 1:
-            self.purge_by(self.block_continuity)
+        if len(self.tick_candidates) > 1:
+            self.purge_by(self.tick_continuity)
 
-        if len(self.block_candidates) > 1:
+        if len(self.tick_candidates) > 1:
             self.purge_by(median_ts)
 
-        if len(self.block_candidates) > 1:
+        if len(self.tick_candidates) > 1:
             self.purge_by(hash_sum)
 
         logger.info(
             "Candidates purged, " +
-            str(len(self.block_candidates)) +
+            str(len(self.tick_candidates)) +
             " candidates remaining"
         )
 
-        winning_block = self.block_candidates[0]
+        winning_tick = self.tick_candidates[0]
 
-        if winning_block['current_tick_ref'] == self.current_chainhash():
+        if winning_tick['current_tick_ref'] == self.current_chainhash():
             logger.info("Chosen candidate fits chain, appending")
-            self.chain.append(winning_block)
+            self.chain.append(winning_tick)
         else:
             logger.info("Chosen candidate belongs to a fork, getting altchain")
             forked_peers = self.forked_hashes[
-                winning_block['current_tick_ref']]
+                winning_tick['current_tick_ref']]
             logger.info("Forked peer: " + str(forked_peers))
             logger.info("Peers: " + str(self.peers))
             altchain_found = False
@@ -271,7 +271,7 @@ class Clockchain(object):
                 logger.info(
                     "Could not find peer to contact "
                     "for altchain, waiting a round")
-                self.chain.append(candidate_block)
+                self.chain.append(candidate_tick)
 
         logger.info("Candidate chosen, the clock has ticked")
 
@@ -369,7 +369,7 @@ class Clockchain(object):
     def restart_tick_forward(self):
         self.added_ping = False
         self.pingpool = {}
-        self.block_candidates = []
+        self.tick_candidates = []
 
     def validate_sig(self, item):
         item_copy = copy.deepcopy(item)
@@ -415,9 +415,9 @@ class Clockchain(object):
         if not self.validate_sig(ping):
             return False
 
-        if not ping['current_block_ref'] == self.current_chainhash():
+        if not ping['current_tick_ref'] == self.current_chainhash():
             self.add_hash_to_forks(
-                ping['current_block_ref'], pubkey_to_addr(ping['pubkey']))
+                ping['current_tick_ref'], pubkey_to_addr(ping['pubkey']))
             logger.info('(validate_ping) Ping detected referencing different '
                         'hash; tracking')
             return False
@@ -515,7 +515,7 @@ def ping_worker():
                     ping['nonce'] = nonce
 
                     # Add and remove current hash to make signature
-                    ping['current_block_ref'] = hash
+                    ping['current_tick_ref'] = hash
                     signature = sign(standard_encode(ping), clockchain.privkey)
                     ping['signature'] = signature
 
@@ -534,7 +534,7 @@ def ping_worker():
             ping['nonce'] = nonce
 
             # Add and remove current hash to make signature
-            ping['current_block_ref'] = clockchain.current_chainhash()
+            ping['current_tick_ref'] = clockchain.current_chainhash()
             signature = sign(standard_encode(ping), clockchain.privkey)
             ping['signature'] = signature
 
@@ -557,23 +557,23 @@ def ping_worker():
             logger.debug("(ping_worker) Forwarded own ping: " + str(ping))
 
 
-def median_ts(block):
+def median_ts(tick):
     # TODO validate with schema
-    if len(block['list']) == 0:
+    if len(tick['list']) == 0:
         return -1
     timestamps = [
-        ping['timestamp'] for ping in block['list']
+        ping['timestamp'] for ping in tick['list']
     ]
     return median(timestamps)
 
 
-def validate_block_timestamp(block):
+def validate_tick_timestamp(tick):
     # TODO validate with schema
-    if block is None:
+    if tick is None:
         return False
-    if len(block['list']) == 0:
+    if len(tick['list']) == 0:
         return True
-    if utcnow() - median_ts(block) >= 1 * 30:
+    if utcnow() - median_ts(tick) >= 1 * 30:
         return True
     else:
         return False
@@ -589,35 +589,35 @@ def forge_worker():
         if len(list(clockchain.pingpool.values())) == 0:
             logger.info("(forge_worker) No pings, waiting")
             continue
-        logger.info("(forge_worker) Pingpool not empty, building block")
-        current_block = {
+        logger.info("(forge_worker) Pingpool not empty, building tick")
+        current_tick = {
             'pubkey': clockchain.pubkey,
             'list': list(clockchain.pingpool.values())
         }
-        logger.info("(forge_worker) Checking if block is ready to forward")
-        if clockchain.validate_block(current_block):
+        logger.info("(forge_worker) Checking if tick is ready to forward")
+        if clockchain.validate_tick(current_tick):
             logger.info(
                 "(forge_worker) Timestamp and pings validated, building")
-            current_block[
+            current_tick[
                 'current_tick_ref'] = clockchain.current_chainhash()
-            current_block['signature'] = sign(
-                standard_encode(current_block),
+            current_tick['signature'] = sign(
+                standard_encode(current_tick),
                 clockchain.privkey
             )
 
             # Forward to peers
-            logger.info("(forge_worker) Forwarding my block")
-            clockchain.forward(current_block, 'block', clockchain.addr)
+            logger.info("(forge_worker) Forwarding my tick")
+            clockchain.forward(current_tick, 'tick', clockchain.addr)
 
-            # Add to own chain and restart ping blocking
+            # Add to own chain and restart
             logger.info("(forge_worker) Starting tick procedure")
-            clockchain.tick_forward(current_block)
-        elif len(clockchain.block_candidates) > 0:
+            clockchain.tick_forward(current_tick)
+        elif len(clockchain.tick_candidates) > 0:
             logger.info(
-                "(forge_worker) Received valid block, starting tick procedure")
+                "(forge_worker) Received valid tick, starting tick procedure")
             clockchain.tick_forward()
         else:
-            logger.info("(forge_worker) No valid blocks yet, waiting")
+            logger.info("(forge_worker) No valid ticks yet, waiting")
 
 
 # Instantiate node
@@ -635,32 +635,32 @@ clockchain = Clockchain()
 # TODO: Need to add rogue client which tries to attack the network in as
 # many ways as possible
 # TODO: This is to learn how to make the network more robust and failsafe
-@app.route('/forward/block', methods=['POST'])
-def forward_block():
-    block = request.get_json()
+@app.route('/forward/tick', methods=['POST'])
+def forward_tick():
+    tick = request.get_json()
 
-    if clockchain.check_duplicate(block):
+    if clockchain.check_duplicate(tick):
         return "duplicate request please wait 10s", 400
 
-    validation_result = clockchain.validate_block(block)
+    validation_result = clockchain.validate_tick(tick)
 
     if not validation_result:
-        return "Invalid block", 400
+        return "Invalid tick", 400
 
     # TODO: Sanitize this input..
     redistribute = int(request.args.get('redistribute'))
     origin = request.args.get('addr')
     if redistribute:
-        clockchain.forward(block, 'block', origin,
+        clockchain.forward(tick, 'tick', origin,
                            redistribute=redistribute)
 
-    if not block['current_tick_ref'] == clockchain.current_chainhash():
-        clockchain.add_hash_to_forks(block['current_tick_ref'], origin)
+    if not tick['current_tick_ref'] == clockchain.current_chainhash():
+        clockchain.add_hash_to_forks(tick['current_tick_ref'], origin)
 
-    if clockchain.validate_block(block):
-        clockchain.block_candidates.append(block)
+    if clockchain.validate_tick(tick):
+        clockchain.tick_candidates.append(tick)
 
-    return "Added block", 201
+    return "Added tick", 201
 
 
 @app.route('/forward/ping', methods=['POST'])
