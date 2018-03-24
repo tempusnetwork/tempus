@@ -337,6 +337,7 @@ class Clockchain(object):
         self.added_ping = False
         self.pingpool = {}
         self.tick_candidates = []
+        self.forked_hashes = {}
 
     def validate_sig(self, item):
         item_copy = copy.deepcopy(item)
