@@ -9,9 +9,6 @@ import requests
 from flask import Flask, jsonify, request
 from jsonschema import validate
 import time
-from random import sample
-from statistics import stdev, mean
-from math import log
 import coloredlogs
 import logging
 import socket
@@ -90,18 +87,6 @@ def hash_sum(content):
 
 def num_pings(tick):
     return len(tick['list'])
-
-
-def similar(a, b):
-    total = 0
-    for i in range(64):
-        total += abs(int(a[i], 16) - int(b[i], 16))
-
-    maximum = 15 * 64
-    fraction = total / maximum
-    similarity = 1 - fraction
-
-    return similarity
 
 
 # TODO: Do this in C or other efficient lib..
@@ -275,7 +260,7 @@ class Clockchain(object):
 
         logger.info("Candidate chosen, the clock has ticked")
 
-        self.restart_tick_forward()
+        self.next_tick()
 
     def check_duplicate(self, values):
         # Check if dict values has been received in the past x seconds
@@ -288,23 +273,6 @@ class Clockchain(object):
 
     def current_chainhash(self):
         return hash(self.chain[-1])
-
-    def get_pingpool_hashes_list(self, include_own_ping, ping_dict=None):
-        hashes = []
-        if ping_dict is None:
-            ping_dict = self.pingpool
-
-        # Uses deepcopy otherwise altering the ping_dict itself!
-        ping_dict_copy = copy.deepcopy(ping_dict)
-
-        if not include_own_ping:
-            ping_dict_copy.pop(clockchain.addr, None)
-
-        for k, v in ping_dict_copy.items():
-            v.pop('signature')
-            hashes.append(hash(v))
-
-        return hashes
 
     def register_peer(self, url, peer_addr):
         """
@@ -366,7 +334,7 @@ class Clockchain(object):
         netloc = urlparse(url).netloc
         del self.peers[netloc]
 
-    def restart_tick_forward(self):
+    def next_tick(self):
         self.added_ping = False
         self.pingpool = {}
         self.tick_candidates = []
