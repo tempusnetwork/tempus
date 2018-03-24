@@ -52,7 +52,9 @@ def resolve(ip):
 
 # Encode dicts (messages loaded from JSON for example) in standard way
 def standard_encode(dictionary):
-    return bytes(json.dumps(dictionary, sort_keys=True, separators=(',', ':')), 'utf-8')
+    return bytes(
+        json.dumps(dictionary, sort_keys=True, separators=(',', ':')),
+        'utf-8')
 
 
 def validate_schema(dictionary, schema):
@@ -62,7 +64,8 @@ def validate_schema(dictionary, schema):
     try:
         validate(dictionary, schema)
     except BaseException:
-        logger.debug("Invalid/missing values: " + str(sys.exc_info()))
+        logger.debug(
+            "(validate_schema) Invalid/missing values: " + str(sys.exc_info()))
         logger.debug(traceback.format_exc())
         return False
     return True
@@ -113,38 +116,6 @@ def mine(content=None):
     return hashed, nonce
 
 
-def evaluate_collection_hashes(collection, permuted):
-    if len(permuted) < 2:
-        return 0
-
-    permuted = [hash(ping) for ping in permuted]
-
-    sims = []
-    for idx, curr_hash in enumerate(permuted):
-        similarity = similar(curr_hash, hash(collection, idx))
-        sims.append(similarity)
-
-    avg = mean(sims)
-    spread = stdev(sims)
-
-    # TODO: Find other solution than using log length of list - this incentivizes spam!!
-    # TODO: You put it there temporarily because just avg*spread was higher
-    # for smaller lists, which is undesirable
-    score = avg * spread * log(len(permuted))
-    return score
-
-
-def smart_permute_list(items_list):
-    length = len(items_list)
-    indices = [i for i in range(length)]
-
-    # TODO: Permute in clever fashion (box-packing problem?) right now is a
-    # random ordering
-    ordering = sample(indices, length)
-    permuted_list = [items_list[i] for i in ordering]
-    return permuted_list, ordering
-
-
 class Clockchain(object):
 
     def __init__(self):
@@ -157,15 +128,19 @@ class Clockchain(object):
         self.forked_hashes = {}
 
         # cache to avoid processing duplicate json forwards
-        self.duplicate_cache = ExpiringDict(max_len=config['expiring_dict_max_len'],
-                                            max_age_seconds=config['expiring_dict_max_age'])
+        self.duplicate_cache = ExpiringDict(
+            max_len=config['expiring_dict_max_len'],
+            max_age_seconds=config['expiring_dict_max_age'])
 
-        # TODO: Figure out how to decide common genesis block if all start with diff hashes..
+        # TODO: Figure out how to decide common genesis
+        # block if all start with diff hashes..
         # Use reward address as identifier for this node
         if config['generate_rand_addr']:
             self.pubkey, self.privkey = get_kp()
             self.addr = pubkey_to_addr(self.pubkey)
-            logger.debug("Using random addr + privkey: " + self.privkey)
+            logger.debug(
+                "(Clockchain init) Using random addr + privkey: " +
+                self.privkey)
         else:
             # Assumes priv.json exists containing fixed private key
             with open(dir_path + '/config/priv.json') as privkey_file:
@@ -175,16 +150,17 @@ class Clockchain(object):
 
             self.addr = pubkey_to_addr(self.pubkey)
 
-        logger.debug("This node is " + self.addr)
+        logger.debug("(Clockchain init) This node is " + self.addr)
 
-        # Create genesis collect
+        # Create genesis tick
         # TODO: Re-adapt this to use signatures
         genesis_addr = "tempigFUe1uuRsAQ7WWNpb5r97pDCJ3wp9"
         self.chain.append(
             {'addr': genesis_addr, 'nonce': 27033568337, 'list': []})
 
     def block_continuity(self, block):
-        previous_addresses = set([ping['pubkey'] for ping in self.chain[-1]['list']])
+        previous_addresses = set([ping['pubkey']
+                                  for ping in self.chain[-1]['list']])
         current_addresses = set([ping['pubkey'] for ping in block['list']])
         common_addresses = previous_addresses.intersection(current_addresses)
         if len(previous_addresses) > 0:
@@ -195,17 +171,18 @@ class Clockchain(object):
     def validate_block_continuity(self, block):
         if len(self.chain) == 1:
             return True
-        logger.debug("Block continuity: " + str(self.block_continuity(block)))
+        logger.debug("(validate_block_continuity) Block continuity: " +
+                     str(self.block_continuity(block)))
         if self.block_continuity(block) > 0.5:
             return True
         return False
 
     def validate_block(self, block):
         if not self.validate_block_continuity(block):
-            logger.info("Block failed continuity validation")
+            logger.info("(validate_block) Block failed continuity validation")
             return False
         if not validate_block_timestamp(block):
-            logger.info("Block failed timestamp validation")
+            logger.info("(validate_block) Block failed timestamp validation")
             return False
         return True
 
@@ -223,23 +200,26 @@ class Clockchain(object):
         ]
 
     def get_and_replace_chain(self, netloc):
-        logger.info("(get_and_replace_chain) Getting altchain...")
-        altchain = json.loads(requests.get(netloc + '/info/clockchain').text)['chain']
-        logger.info("Received altchain: " + json.dumps(altchain))
+        logger.info(
+            "(get_and_replace_chain) Getting altchain...")
+        altchain = json.loads(requests.get(
+            netloc + '/info/clockchain').text)['chain']
+        logger.info("get_and_replace_chain) Received altchain: " +
+                    json.dumps(altchain))
         self.chain = altchain
         self.forked_hashes = {}
 
-    def tick(self, candidate_block=None):
+    def tick_forward(self, candidate_block=None):
         logger.info("The past increases, the future recedes...")
         time.sleep(self.grace_period)
-        if candidate_block is not None and self.validate_block(candidate_block):
+        block_validated = self.validate_block(candidate_block)
+        if candidate_block is not None and block_validated:
             self.block_candidates.append(candidate_block)
 
-        logger.info(
-            "Comparing " + 
-            str(len(self.block_candidates)) +
-            " block candidates"
-        )
+        logger.info("Comparing " +
+                    str(len(self.block_candidates)) +
+                    " block candidates"
+                    )
 
         if len(self.block_candidates) > 1:
             self.purge_by(num_pings)
@@ -254,19 +234,20 @@ class Clockchain(object):
             self.purge_by(hash_sum)
 
         logger.info(
-            "Candidates purged, " + 
-            str(len(self.block_candidates)) + 
+            "Candidates purged, " +
+            str(len(self.block_candidates)) +
             " candidates remaining"
         )
 
         winning_block = self.block_candidates[0]
 
-        if winning_block['current_collect_ref'] == self.current_chainhash():
+        if winning_block['current_tick_ref'] == self.current_chainhash():
             logger.info("Chosen candidate fits chain, appending")
             self.chain.append(winning_block)
         else:
             logger.info("Chosen candidate belongs to a fork, getting altchain")
-            forked_peers = self.forked_hashes[winning_block['current_collect_ref']]
+            forked_peers = self.forked_hashes[
+                winning_block['current_tick_ref']]
             logger.info("Forked peer: " + str(forked_peers))
             logger.info("Peers: " + str(self.peers))
             altchain_found = False
@@ -280,12 +261,14 @@ class Clockchain(object):
                 if altchain_found:
                     break
             if not altchain_found:
-                logger.info("Could not find peer to contact for altchain, waiting a round")
+                logger.info(
+                    "Could not find peer to contact "
+                    "for altchain, waiting a round")
                 self.chain.append(candidate_block)
 
-        logger.info("Candidate chosen, restarting ping collection")
+        logger.info("Candidate chosen, the clock has ticked")
 
-        self.restart_collect()
+        self.restart_tick_forward()
 
     def check_duplicate(self, values):
         # Check if dict values has been received in the past x seconds
@@ -344,12 +327,15 @@ class Clockchain(object):
         Forward any json content to another peer
 
         :param data_dict: dictionary which becomes json content
-        :param route: which route it's addressed at (for ex, forwarding a txn, a peer, etc)
+        :param route: which route it's addressed at
+            (for ex, forwarding a txn, a peer, etc)
         :param origin: origin of this forward
-        :param redistribute: Amount of hops (redistributions through peers) this json message has passed through
+        :param redistribute: Amount of hops (redistributions through peers)
+            this json message has passed through
         :return: void
         """
-        # TODO: Right now max hops is set to 1.... meaning no redistribution.  Good cause we have full netw connectivity
+        # TODO: Right now max hops is set to 1.... meaning no redistribution.
+        # Good cause we have full netw connectivity
         # TODO: However for nonfully connected nodes, > 1 hops needed to fully
         # reach all corners and nodes of network
 
@@ -361,8 +347,10 @@ class Clockchain(object):
                 try:  # Add self.addr in query to identify self to peers
                     # If origin addr is not target peer addr
                     if origin != self.peers[peer]:
-                        requests.post(peer + '/forward/' + route + '?addr=' + origin +
-                                      "&redistribute=" + str(redistribute + 1), json=data_dict, timeout=config['timeout'])
+                        requests.post(
+                            peer + '/forward/' + route + '?addr=' + origin +
+                            "&redistribute=" + str(redistribute + 1),
+                            json=data_dict, timeout=config['timeout'])
                 except BaseException:
                     logger.debug(str(sys.exc_info()))
                     pass
@@ -371,7 +359,7 @@ class Clockchain(object):
         netloc = urlparse(url).netloc
         del self.peers[netloc]
 
-    def restart_collect(self):
+    def restart_tick_forward(self):
         self.added_ping = False
         self.pingpool = {}
         self.block_candidates = []
@@ -380,77 +368,23 @@ class Clockchain(object):
         item_copy = copy.deepcopy(item)
         signature = item_copy.pop('signature', None)
         if signature is None:
-            logger.debug("Could not find signature in validate sighash..")
+            logger.debug("(validate_sig) Could not find signature in "
+                         "validate sighash..")
             return False
 
         # Validate signature
         try:
-            if not verify(standard_encode(item_copy), signature, item_copy['pubkey']):
+            if not verify(
+                    standard_encode(item_copy),
+                    signature,
+                    item_copy['pubkey']):
                 return False
         except BadSignatureError:
             # TODO : When new joiner joins, make sure seeds/new friends relate
             # the latest hash to them..
-            print(
-                "Mismatch in signature validation, possibly due to chain split / simultaneous solutions found")
-            return False
-
-        return True
-
-    def validate_sig_hash(self, item):
-        item_copy = copy.deepcopy(item)
-        signature = item_copy.pop('signature', None)
-        if signature is None:
-            logger.debug("Could not find signature in validate sighash..")
-            return False
-
-        print(self.current_chainhash(), item_copy, hash(item_copy))
-        # Check hash
-        if hash(item_copy)[-difficulty:] != "0" * difficulty:
-            logger.debug("Invalid hash for item: " +
-                         item_copy + " " + hash(item_copy))
-            return False
-
-        # Adding current collect reference, signature will only match if our own and peers collect references match
-        # TODO: Figure out if this messes with consensus mechanism, or enhances
-        # it
-        item_copy['current_collect_ref'] = self.current_chainhash()
-
-        # Validate signature
-        try:
-            if not verify(standard_encode(item_copy), signature, item_copy['pubkey']):
-                return False
-        except BadSignatureError:
-            # TODO : When new joiner joins, make sure seeds/new friends relate
-            # the latest hash to them..
-            print(
-                "Mismatch in signature validation, possibly due to chain split / simultaneous solutions found")
-            return False
-
-        return True
-
-    def validate_collect(self, collect):
-        if not validate_schema(collect, dir_path + '/schemas/collect_schema.json'):
-            logger.debug("Failed schema validation")
-            return False
-
-        # Check hash and signature, keeping in mind signature might be popped
-        # off
-        if not self.validate_sig_hash(collect):
-            logger.debug("Failed signature and hash checking")
-            return False
-
-        # Check all pings in list
-        for ping in collect['list']:
-            valid_ping = self.validate_ping(ping, check_in_pool=False)
-            if not valid_ping:
-                logger.debug("Invalid ping for collect")
-                return False
-
-        # Check that score is high enough
-        score = evaluate_collection_hashes(
-            self.current_chainhash(), collect['list'])
-        if score <= config['score_limit']:
-            logger.debug("Score below score limit:" + str(score))
+            logger.info(
+                "(validate_sig) Mismatch in signature validation, possibly "
+                "due to chain split / simultaneous solutions found")
             return False
 
         return True
@@ -475,7 +409,8 @@ class Clockchain(object):
             return False
 
         if not ping['current_block_ref'] == self.current_chainhash():
-            self.add_hash_to_forks(ping['current_block_ref'], pubkey_to_addr(ping['pubkey']))
+            self.add_hash_to_forks(
+                ping['current_block_ref'], pubkey_to_addr(ping['pubkey']))
             logger.info('Ping detected referencing different hash; tracking')
             return False
 
@@ -494,19 +429,26 @@ def send_mutual_add_requests(peers, get_further_peers=False):
             content['signature'] = signature
             try:
                 response = requests.post(
-                    peer + '/mutual_add', json=content, timeout=config['timeout'])
+                    peer + '/mutual_add',
+                    json=content,
+                    timeout=config['timeout'])
                 peer_addr = response.text
                 status_code = response.status_code
-                logger.info(str(peer_addr) + str(status_code))
+                logger.info("(send_mutual_add_requests) contacted " +
+                            str(peer_addr) + ", received " +
+                            str(status_code))
             except BaseException:
                 logger.debug(
-                    "no response from peer, did not add: " + str(sys.exc_info()))
+                    "(send_mutual_add_requests) no response from peer, "
+                    "did not add: " + str(sys.exc_info()))
                 continue
             if status_code == 201:
-                logger.info("Adding peer " + str(peer))
+                logger.info("(send_mutual_add_requests) Adding peer " +
+                            str(peer))
                 clockchain.register_peer(peer, peer_addr)
 
-                # Get all peers of current discovered peers and add to set (set is to avoid duplicates)
+                # Get all peers of current discovered peers and add to set
+                # (set is to avoid duplicates)
                 # Essentially going one degree further out in network. From
                 # current peers to their peers
                 if get_further_peers:
@@ -534,7 +476,8 @@ def join_network_worker():
 
     logger.debug("Peers: " + str(clockchain.peers))
 
-    # Above could be done a further step, doing a recursion to discover entire network.
+    # Above could be done a further step, doing a recursion to
+    # discover entire network.
     # Doing this would make for exponential amount of requests however, so
     # only doing it for 1 hop atm.
 
@@ -624,7 +567,9 @@ def validate_block_timestamp(block):
         return False
 
 
-# To replace collect_worker
+# TODO: If ping is inserted which makes everyone find a viable solution,
+# everybody floods network with that solution
+# TODO: So need to fix that somehow
 def forge_worker():
     while True:
         time.sleep(5)
@@ -639,8 +584,10 @@ def forge_worker():
         }
         logger.info("(forge_worker) Checking if block is ready to forward")
         if clockchain.validate_block(current_block):
-            logger.info("(forge_worker) Timestamp and pings validated, building")
-            current_block['current_collect_ref'] = clockchain.current_chainhash()
+            logger.info(
+                "(forge_worker) Timestamp and pings validated, building")
+            current_block[
+                'current_tick_ref'] = clockchain.current_chainhash()
             current_block['signature'] = sign(
                 standard_encode(current_block),
                 clockchain.privkey
@@ -652,92 +599,13 @@ def forge_worker():
 
             # Add to own chain and restart ping blocking
             logger.info("(forge_worker) Starting tick procedure")
-            clockchain.tick(current_block)
+            clockchain.tick_forward(current_block)
         elif len(clockchain.block_candidates) > 0:
-            logger.info("(forge_worker) Received valid block, starting tick procedure")
-            clockchain.tick()
+            logger.info(
+                "(forge_worker) Received valid block, starting tick procedure")
+            clockchain.tick_forward()
         else:
             logger.info("(forge_worker) No valid blocks yet, waiting")
-
-
-
-# TODO: When two solutions found by 2 verifiers at the same time, the network splits
-# TODO: Need to design consensus mechanism - splitting network halves the
-# pings??
-
-# TODO: If ping is inserted which makes everyone find a viable solution, everybody floods network with that solution
-# TODO: So need to fix that somehow
-def collect_worker():
-    while True:
-        if clockchain.added_ping:
-            curr_collect_hash = clockchain.current_chainhash()
-
-            ping_list = list(clockchain.pingpool.values())
-
-            if len(ping_list) == 0:
-                clockchain.restart_collect()
-                logger.error(
-                    "Got signalled it was found before me.. putting own hash again.. (via len pinglist)")
-                continue
-
-            # set include_own_ping=False because my ping is included already in
-            # the collect
-            hashes_list = clockchain.get_pingpool_hashes_list(
-                ping_dict=clockchain.pingpool, include_own_ping=False)
-
-            _, ordering = smart_permute_list(hashes_list)
-
-            permuted_ping_list = [ping_list[i] for i in ordering]
-
-            collect = {'pubkey': clockchain.pubkey, 'list': permuted_ping_list}
-
-            _, candidate_nonce = mine(collect)
-
-            if curr_collect_hash != clockchain.current_chainhash():  # Restart
-                logger.error(
-                    "Got signalled it was found before me.. putting own hash again.. (via currblock diff)")
-                clockchain.restart_collect()
-                continue
-
-            score = evaluate_collection_hashes(
-                curr_collect_hash, permuted_ping_list)
-
-            if score > config['score_limit']:
-
-                collect['nonce'] = candidate_nonce
-
-                # Add and remove current hash to make signature
-                collect['current_collect_ref'] = clockchain.current_chainhash()
-                collect['signature'] = sign(
-                    standard_encode(collect), clockchain.privkey)
-                collect.pop('current_collect_ref', None)
-
-                # Validate own collect
-                validation_result = clockchain.validate_collect(collect)
-
-                if not validation_result:
-                    logger.debug("Failed own collect validation")
-                    continue  # Skip to next iteration of while loop
-
-                logger.debug("Solved collect of size " +
-                             str(len(permuted_ping_list)) + ", with contents " + str(collect))
-
-                # Add to own chain and restart ping collecting
-                clockchain.chain.append(collect)
-
-                logger.debug("Restarting")
-
-                clockchain.restart_collect()
-
-                logger.debug("Forwarding")
-
-                # Forward to peers
-                clockchain.forward(collect, 'collect', clockchain.addr)
-                logger.debug("Forwarded own collect: " + str(collect))
-
-            else:
-                logger.warning("Only achieved " + str(score) + " score for " + curr_collect_hash + " using "
-                               + str(len(permuted_ping_list)) + " pings")
 
 
 # Instantiate node
@@ -752,7 +620,9 @@ coloredlogs.install(level='DEBUG', logger=logger,
 clockchain = Clockchain()
 
 
-# To replace /forward/collect
+# TODO: Need to add rogue client which tries to attack the network in as
+# many ways as possible
+# TODO: This is to learn how to make the network more robust and failsafe
 @app.route('/forward/block', methods=['POST'])
 def forward_block():
     block = request.get_json()
@@ -772,41 +642,13 @@ def forward_block():
         clockchain.forward(block, 'block', origin,
                            redistribute=redistribute)
 
-    if not block['current_collect_ref'] == clockchain.current_chainhash():
-        clockchain.add_hash_to_forks(block['current_collect_ref'], origin)
+    if not block['current_tick_ref'] == clockchain.current_chainhash():
+        clockchain.add_hash_to_forks(block['current_tick_ref'], origin)
 
     if clockchain.validate_block(block):
         clockchain.block_candidates.append(block)
 
     return "Added block", 201
-
-
-# TODO: Need to add rogue client which tries to attack the network in as many ways as possible
-# TODO: This is to learn how to make the network more robust and failsafe
-@app.route('/forward/collect', methods=['POST'])
-def forward_collect():
-    collect = request.get_json()
-
-    if clockchain.check_duplicate(collect):
-        return "duplicate request please wait 10s", 400
-
-    validation_result = clockchain.validate_collect(collect)
-
-    if not validation_result:
-        return "Invalid collect", 400
-
-    clockchain.chain.append(collect)
-
-    clockchain.restart_collect()
-
-    # TODO: Sanitize this input..
-    redistribute = int(request.args.get('redistribute'))
-    if redistribute:
-        origin = request.args.get('addr')
-        clockchain.forward(collect, 'collect', origin,
-                           redistribute=redistribute)
-
-    return "Added collect", 201
 
 
 @app.route('/forward/ping', methods=['POST'])
@@ -817,9 +659,10 @@ def forward_ping():
 
     validation_result = clockchain.validate_ping(ping, check_in_pool=True)
 
-    # TODO: Why would anyone forward others pings? Only incentivized to forward own pings (to get highest uptime)
+    # TODO: Why would anyone forward others pings? Only incentivized to
+    # forward own pings (to get highest uptime)
     # TODO: Partially solved by the need to have at least as many pings as
-    # previous collect
+    # previous tick
 
     redistribute = int(request.args.get('redistribute'))
     if redistribute:
@@ -835,15 +678,19 @@ def forward_ping():
         return "Ping not validated", 400
 
 
-# TODO: Create a dns seed with a clone from https://github.com/sipa/bitcoin-seeder
+# TODO: Create a dns seed with a clone from
+# https://github.com/sipa/bitcoin-seeder
 # TODO: See also
-# https://bitcoin.stackexchange.com/questions/3536/how-do-bitcoin-clients-find-each-other/11273
+# https://bitcoin.stackexchange.com/questions/3536/
+# how-do-bitcoin-clients-find-each-other/11273
 @app.route('/mutual_add', methods=['POST'])
 def mutual_add():
     values = request.get_json()
 
     # Verify json schema
-    if not validate_schema(values, dir_path + '/schemas/mutual_add_schema.json'):
+    if not validate_schema(
+            values,
+            dir_path + '/schemas/mutual_add_schema.json'):
         return "Invalid request", 400
 
     # Verify that pubkey and signature match
@@ -863,13 +710,16 @@ def mutual_add():
 
     # TODO: Add signature validation here? to make sure peer is who they say
     # they are..
-    if remote_cleaned_url != own_cleaned_url:  # Avoid inf loop by not adding self..
+
+    # Avoid inf loop by not adding self..
+    if remote_cleaned_url != own_cleaned_url:
         addr = requests.get(remote_url + '/info/addr').text
 
         # Verify that the host's address matches the key pair used to sign the
         # mutual_add request
         if not pubkey_to_addr(values['pubkey']) == addr:
-            print("Received mutual_add request signed with key not matching host")
+            logger.info("(/mutual_add) Received mutual_add request signed "
+                        "with key not matching host")
             return "Signature does not match address of provided host", 400
 
         if not clockchain.register_peer(remote_url, addr):
@@ -878,8 +728,11 @@ def mutual_add():
             if clockchain.addr in clockchain.pingpool:
                 ping = clockchain.pingpool[clockchain.addr]
                 # Forward but do not redistribute
-                requests.post(remote_url + '/forward/ping?addr=' + clockchain.addr + "&redistribute=0",
-                              json=ping, timeout=config['timeout'])
+                requests.post(
+                    remote_url + '/forward/ping?addr=' +
+                    clockchain.addr + "&redistribute=0",
+                    json=ping,
+                    timeout=config['timeout'])
 
     return clockchain.addr, 201
 
