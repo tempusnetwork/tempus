@@ -605,6 +605,8 @@ def ping_worker():
 
 
 def median_ts(block):
+    if len(block['list']) == 0:
+        return -1
     timestamps = [
         ping['timestamp'] for ping in block['list']
     ]
@@ -612,6 +614,8 @@ def median_ts(block):
 
 
 def validate_block_timestamp(block):
+    if block is None:
+        return False
     if len(block['list']) == 0:
         return True
     if utcnow() - median_ts(block) >= 1 * 30:
