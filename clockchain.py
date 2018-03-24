@@ -159,6 +159,9 @@ class Clockchain(object):
             {'addr': genesis_addr, 'nonce': 27033568337, 'list': []})
 
     def block_continuity(self, block):
+        # TODO validate with schema
+        if block is None:
+            return 0
         previous_addresses = set([ping['pubkey']
                                   for ping in self.chain[-1]['list']])
         current_addresses = set([ping['pubkey'] for ping in block['list']])
@@ -169,6 +172,9 @@ class Clockchain(object):
             return 1
 
     def validate_block_continuity(self, block):
+        # TODO validate with schema
+        if block is None:
+            return False
         if len(self.chain) == 1:
             return True
         logger.debug("(validate_block_continuity) Block continuity: " +
@@ -178,6 +184,7 @@ class Clockchain(object):
         return False
 
     def validate_block(self, block):
+        # TODO validate with schema
         if not self.validate_block_continuity(block):
             logger.info("(validate_block) Block failed continuity validation")
             return False
@@ -548,6 +555,7 @@ def ping_worker():
 
 
 def median_ts(block):
+    # TODO validate with schema
     if len(block['list']) == 0:
         return -1
     timestamps = [
@@ -557,6 +565,7 @@ def median_ts(block):
 
 
 def validate_block_timestamp(block):
+    # TODO validate with schema
     if block is None:
         return False
     if len(block['list']) == 0:
