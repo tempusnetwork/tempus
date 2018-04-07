@@ -12,7 +12,7 @@ import traceback
 from datetime import datetime
 from statistics import median
 from urllib.parse import urlparse
-
+import jsonref
 import coloredlogs
 import pytz
 import requests
@@ -25,7 +25,7 @@ from pki import get_kp, pubkey_to_addr, sign, verify
 
 
 def utcnow():
-    return datetime.now(tz=pytz.utc).timestamp()
+    return int(datetime.now(tz=pytz.utc).timestamp())
 
 
 # Set current working directory to the directory of this file
@@ -53,15 +53,19 @@ def standard_encode(dictionary):
         'utf-8')
 
 
-def validate_schema(dictionary, schema):
-    # Check that the required fields are in the dict
-    with open(schema) as data_file:
-        schema = json.load(data_file)
+def validate_schema(dictionary, schema_file):
+    absolute_path = dir_path + '/schemas/' + schema_file
+
+    base_path = os.path.dirname(absolute_path)
+    base_uri = 'file://{}/'.format(base_path)
+
+    with open(absolute_path) as schema_bytes:
+        schema = jsonref.loads(schema_bytes.read(), base_uri=base_uri,
+                               jsonschema=True)
     try:
         validate(dictionary, schema)
-    except BaseException:
-        logger.debug(
-            "(validate_schema) Invalid/missing values: " + str(sys.exc_info()))
+    except Exception as e:
+        logger.debug("Invalid/missing values: " + str(sys.exc_info()))
         logger.debug(traceback.format_exc())
         return False
     return True
@@ -370,7 +374,7 @@ class Clockchain(object):
         self.forked_hashes[hash].append(peer_addr)
 
     def validate_ping(self, ping, check_in_pool=True):
-        if not validate_schema(ping, dir_path + '/schemas/ping_schema.json'):
+        if not validate_schema(ping, 'ping_schema.json'):
             return False
 
         # Check addr already not in dict
@@ -668,9 +672,7 @@ def mutual_add():
     values = request.get_json()
 
     # Verify json schema
-    if not validate_schema(
-            values,
-            dir_path + '/schemas/mutual_add_schema.json'):
+    if not validate_schema(values, 'mutual_add_schema.json'):
         return "Invalid request", 400
 
     # Verify that pubkey and signature match

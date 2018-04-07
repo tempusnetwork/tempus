@@ -1,0 +1,23 @@
+{
+	"type" : "object",
+	"properties" : {
+		"pubkey" : {
+			"type" : "string"
+		},
+		"nonce" : {
+			"type" : "integer"
+		},
+		"list" : {
+			"type" : "array",
+			"items" : {"$ref": "ping_schema.json"},
+			"minItems": 1
+		},
+		"prev_tick": {
+			"type": "string"
+		},
+		"signature": {
+			"type": "string"
+		}
+	},
+	"required": ["pubkey", "nonce", "list", "prev_tick", "signature"]
+}
