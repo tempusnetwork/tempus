@@ -126,9 +126,7 @@ class Clockchain(object):
         if config['generate_rand_addr']:
             self.pubkey, self.privkey = get_kp()
             self.addr = pubkey_to_addr(self.pubkey)
-            logger.debug(
-                "(Clockchain init) Using random addr + privkey: " +
-                self.privkey)
+            logger.debug("Using random addr + privkey: " + self.privkey)
         else:
             # Assumes priv.json exists containing fixed private key
             with open(dir_path + '/config/priv.json') as privkey_file:
@@ -138,7 +136,7 @@ class Clockchain(object):
 
             self.addr = pubkey_to_addr(self.pubkey)
 
-        logger.debug("(Clockchain init) This node is " + self.addr)
+        logger.debug("This node is " + self.addr)
 
         # Create genesis tick
         # TODO: Re-adapt this to use signatures
@@ -165,8 +163,7 @@ class Clockchain(object):
             return False
         if len(self.chain) == 1:
             return True
-        logger.debug("(validate_tick_continuity) tick continuity: " +
-                     str(self.tick_continuity(tick)))
+        logger.debug("Tick continuity: " + str(self.tick_continuity(tick)))
         if self.tick_continuity(tick) > 0.5:
             return True
         return False
@@ -174,10 +171,10 @@ class Clockchain(object):
     def validate_tick(self, tick):
         # TODO validate with schema
         if not self.validate_tick_continuity(tick):
-            logger.info("(validate_tick) tick failed continuity validation")
+            logger.info("tick failed continuity validation")
             return False
         if not validate_tick_timestamp(tick):
-            logger.info("(validate_tick) tick failed timestamp validation")
+            logger.info("tick failed timestamp validation")
             return False
         return True
 
@@ -195,26 +192,20 @@ class Clockchain(object):
         ]
 
     def get_and_replace_chain(self, netloc):
-        logger.info(
-            "(get_and_replace_chain) Getting altchain...")
+        logger.info("Getting altchain...")
         altchain = json.loads(requests.get(
             netloc + '/info/clockchain').text)['chain']
-        logger.info("get_and_replace_chain) Received altchain: " +
-                    json.dumps(altchain))
+        logger.info("Received altchain: " + json.dumps(altchain))
         self.chain = altchain
         self.forked_hashes = {}
 
     def tick_forward(self, candidate_tick=None):
-        logger.info("The past increases, the future recedes...")
         time.sleep(self.grace_period)
         tick_validated = self.validate_tick(candidate_tick)
         if candidate_tick is not None and tick_validated:
             self.tick_candidates.append(candidate_tick)
 
-        logger.info("Comparing " +
-                    str(len(self.tick_candidates)) +
-                    " tick candidates"
-                    )
+        logger.info("Comparing " + str(len(self.tick_candidates)) + " ticks")
 
         if len(self.tick_candidates) > 1:
             self.purge_by(num_pings)
@@ -228,11 +219,7 @@ class Clockchain(object):
         if len(self.tick_candidates) > 1:
             self.purge_by(hash_sum)
 
-        logger.info(
-            "Candidates purged, " +
-            str(len(self.tick_candidates)) +
-            " candidates remaining"
-        )
+        logger.info("Ticks purged, " + str(len(self.tick_candidates)) + " left")
 
         winning_tick = self.tick_candidates[0]
 
@@ -256,12 +243,10 @@ class Clockchain(object):
                 if altchain_found:
                     break
             if not altchain_found:
-                logger.info(
-                    "Could not find peer to contact "
-                    "for altchain, waiting a round")
+                logger.info("Could not find altchain, waiting for next round")
                 self.chain.append(candidate_tick)
 
-        logger.info("Candidate chosen, the clock has ticked")
+        logger.info("Candidate chosen")
 
         self.next_tick()
 
@@ -347,8 +332,7 @@ class Clockchain(object):
         item_copy = copy.deepcopy(item)
         signature = item_copy.pop('signature', None)
         if signature is None:
-            logger.debug("(validate_sig) Could not find signature in "
-                         "validate sighash..")
+            logger.debug("Could not find signature in validate sig..")
             return False
 
         # Validate signature
@@ -389,8 +373,7 @@ class Clockchain(object):
         if not ping['current_tick_ref'] == self.current_chainhash():
             self.add_hash_to_forks(
                 ping['current_tick_ref'], pubkey_to_addr(ping['pubkey']))
-            logger.info('(validate_ping) Ping detected referencing different '
-                        'hash; tracking')
+            logger.info('Ping detected referencing different hash; tracking')
             return False
 
         return True
@@ -413,17 +396,16 @@ def send_mutual_add_requests(peers, get_further_peers=False):
                     timeout=config['timeout'])
                 peer_addr = response.text
                 status_code = response.status_code
-                logger.info("(send_mutual_add_requests) contacted " +
+                logger.info("contacted " +
                             str(peer_addr) + ", received " +
                             str(status_code))
             except Exception as e:
                 logger.debug(
-                    "(send_mutual_add_requests) no response from peer, "
+                    "no response from peer, "
                     "did not add: " + str(sys.exc_info()))
                 continue
             if status_code == 201:
-                logger.info("(send_mutual_add_requests) Adding peer " +
-                            str(peer))
+                logger.info("Adding peer " + str(peer))
                 clockchain.register_peer(peer, peer_addr)
 
                 # Get all peers of current discovered peers and add to set
@@ -443,8 +425,7 @@ def join_network_worker():
     # Sleeping random amount to not have seed-clash (cannot do circular adding
     # of peers at the exact same time as seeds)
     sleeptime = random.randrange(3000) / 1000.0
-    logger.debug("(join_network_worker) Sleeping for " + str(sleeptime) +
-                 "s before joining network")
+    logger.debug("Sleeping for " + str(sleeptime) + "s before joining network")
     time.sleep(sleeptime)
 
     # First add seeds, and get the seeds peers
@@ -454,7 +435,7 @@ def join_network_worker():
     # Then add the peers of seeds
     send_mutual_add_requests(peers_of_seeds)
 
-    logger.debug("(join_network_worker) Peers: " + str(clockchain.peers))
+    logger.debug("Peers: " + str(clockchain.peers))
 
     # Above could be done a further step, doing a recursion to
     # discover entire network.
@@ -464,19 +445,17 @@ def join_network_worker():
     # TODO: Synchronizing latest chain with peers (choosing what the majority
     # has?)
 
-    logger.debug("(join_network_worker) Finished joining network")
+    logger.debug("Finished joining network")
 
 
 def ping_worker():
     while True:
         time.sleep(20)
         if len(clockchain.forked_hashes) > 0:
-            logger.info("(ping_worker) Alternative hashes found on network")
+            logger.info("Alternative hashes found on network")
             for hash, peers in clockchain.forked_hashes.items():
                 if len(peers) > 10:
-                    logger.info(
-                        "(ping_worker) Alternative hash found with"
-                        " significant number of pings; sending altping")
+                    logger.info("Althash found with >10 pings, sending altping")
 
                     ping = {
                         'pubkey': clockchain.pubkey,
@@ -492,11 +471,11 @@ def ping_worker():
 
                     # Forward to peers
                     clockchain.forward(ping, 'ping', clockchain.addr)
-                    logger.debug("(ping_worker) Forwarded alt ping: " +
+                    logger.debug("Forwarded alt ping: " +
                                  str(ping))
         if not clockchain.added_ping:
             logger.debug(
-                "(ping_worker) Haven't pinged yet, starting...")
+                "Haven't pinged yet, starting...")
             ping = {
                 'pubkey': clockchain.pubkey,
                 'timestamp': utcnow()
@@ -514,7 +493,7 @@ def ping_worker():
                 ping, check_in_pool=True)
 
             if not validation_result:
-                logger.debug("(ping_worker) Failed own ping validation")
+                logger.debug("Failed own ping validation")
                 continue  # Skip to next iteration of while loop
 
             # Add to pool
@@ -525,7 +504,7 @@ def ping_worker():
 
             # Forward to peers
             clockchain.forward(ping, 'ping', clockchain.addr)
-            logger.debug("(ping_worker) Forwarded own ping: " + str(ping))
+            logger.debug("Forwarded own ping: " + str(ping))
 
 
 def median_ts(tick):
@@ -556,19 +535,18 @@ def validate_tick_timestamp(tick):
 def forge_worker():
     while True:
         time.sleep(5)
-        logger.info("(forge_worker) Checking pingpool")
+        logger.info("Checking pingpool")
         if len(list(clockchain.pingpool.values())) == 0:
-            logger.info("(forge_worker) No pings, waiting")
+            logger.info("No pings, waiting")
             continue
-        logger.info("(forge_worker) Pingpool not empty, building tick")
+        logger.info("Pingpool not empty, building tick")
         current_tick = {
             'pubkey': clockchain.pubkey,
             'list': list(clockchain.pingpool.values())
         }
-        logger.info("(forge_worker) Checking if tick is ready to forward")
+        logger.info("Checking if tick is ready to forward")
         if clockchain.validate_tick(current_tick):
-            logger.info(
-                "(forge_worker) Timestamp and pings validated, building")
+            logger.info("Timestamp and pings validated, building")
             current_tick[
                 'current_tick_ref'] = clockchain.current_chainhash()
             current_tick['signature'] = sign(
@@ -577,18 +555,17 @@ def forge_worker():
             )
 
             # Forward to peers
-            logger.info("(forge_worker) Forwarding my tick")
+            logger.info("Forwarding my tick")
             clockchain.forward(current_tick, 'tick', clockchain.addr)
 
             # Add to own chain and restart
-            logger.info("(forge_worker) Starting tick procedure")
+            logger.info("Starting tick procedure")
             clockchain.tick_forward(current_tick)
         elif len(clockchain.tick_candidates) > 0:
-            logger.info(
-                "(forge_worker) Received valid tick, starting tick procedure")
+            logger.info("Received valid tick, starting tick procedure")
             clockchain.tick_forward()
         else:
-            logger.info("(forge_worker) No valid ticks yet, waiting")
+            logger.info("No valid ticks yet, waiting")
 
 
 # Instantiate node
@@ -596,7 +573,7 @@ app = Flask(__name__)
 
 logger = logging.getLogger(__name__)
 coloredlogs.install(level='DEBUG', logger=logger,
-                    fmt='(%(threadName)-10s) %(message)s')
+                    fmt='(%(threadName)-10s) (%(funcName)s) %(message)s')
 
 
 # Instantiate the clockchain
@@ -697,8 +674,7 @@ def mutual_add():
         # Verify that the host's address matches the key pair used to sign the
         # mutual_add request
         if not pubkey_to_addr(values['pubkey']) == addr:
-            logger.info("(/mutual_add) Received mutual_add request signed "
-                        "with key not matching host")
+            logger.info("Received request signed with key not matching host")
             return "Signature does not match address of provided host", 400
 
         if not clockchain.register_peer(remote_url, addr):
