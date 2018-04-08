@@ -511,9 +511,7 @@ def median_ts(tick):
     # TODO validate with schema
     if len(tick['list']) == 0:
         return -1
-    timestamps = [
-        ping['timestamp'] for ping in tick['list']
-    ]
+    timestamps = [ping['timestamp'] for ping in tick['list']]
     return median(timestamps)
 
 
@@ -532,7 +530,7 @@ def validate_tick_timestamp(tick):
 # TODO: If ping is inserted which makes everyone find a viable solution,
 # everybody floods network with that solution
 # TODO: So need to fix that somehow
-def forge_worker():
+def tick_worker():
     while True:
         time.sleep(5)
         logger.info("Checking pingpool")
@@ -734,11 +732,11 @@ if __name__ == '__main__':
 
     join_network_thread = threading.Thread(target=join_network_worker)
     ping_thread = threading.Thread(target=ping_worker)
-    forge_thread = threading.Thread(target=forge_worker)
+    tick_thread = threading.Thread(target=tick_worker)
 
     join_network_thread.start()
     ping_thread.start()
-    forge_thread.start()
+    tick_thread.start()
 
     # Try ports until one succeeds
     while True:
