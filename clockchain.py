@@ -400,9 +400,7 @@ def send_mutual_add_requests(peers, get_further_peers=False):
                             str(peer_addr) + ", received " +
                             str(status_code))
             except Exception as e:
-                logger.debug(
-                    "no response from peer, "
-                    "did not add: " + str(sys.exc_info()))
+                logger.debug("no response from peer: " + str(sys.exc_info()))
                 continue
             if status_code == 201:
                 logger.info("Adding peer " + str(peer))
