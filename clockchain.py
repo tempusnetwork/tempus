@@ -361,9 +361,8 @@ class Clockchain(object):
         except BadSignatureError:
             # TODO : When new joiner joins, make sure seeds/new friends relate
             # the latest hash to them..
-            logger.info(
-                "(validate_sig) Mismatch in signature validation, possibly "
-                "due to chain split / simultaneous solutions found")
+            logger.info("Bad signature!" + str(item_copy) + " "
+                        + str(signature))
             return False
 
         return True
@@ -641,25 +640,23 @@ def forward_ping():
     if clockchain.check_duplicate(ping):
         return "duplicate request please wait 10s", 400
 
-    validation_result = clockchain.validate_ping(ping, check_in_pool=True)
+    if not clockchain.validate_ping(ping, check_in_pool=True):
+        return "Invalid ping", 400
 
-    # TODO: Why would anyone forward others pings? Only incentivized to
-    # forward own pings (to get highest uptime)
-    # TODO: Partially solved by the need to have at least as many pings as
-    # previous tick
+    # Add to pool
+    addr = pubkey_to_addr(ping['pubkey'])
+    clockchain.pingpool[addr] = ping
+
+    # TODO: Why would anyone forward others pings? Only incentivized
+    # to forward own pings (to get highest uptime)
+    # TODO: Would be solved if you remove peers that do not forward your pings
 
     redistribute = int(request.args.get('redistribute'))
     if redistribute:
         origin = request.args.get('addr')
         clockchain.forward(ping, 'ping', origin, redistribute=redistribute)
 
-    if validation_result:
-        # Add to pool
-        addr = pubkey_to_addr(ping['pubkey'])
-        clockchain.pingpool[addr] = ping
-        return "Added ping", 201
-    else:
-        return "Ping not validated", 400
+    return "Added ping", 201
 
 
 # TODO: Create a dns seed with a clone from
