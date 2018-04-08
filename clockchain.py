@@ -329,7 +329,7 @@ class Clockchain(object):
                             peer + '/forward/' + route + '?addr=' + origin +
                             "&redistribute=" + str(redistribute + 1),
                             json=data_dict, timeout=config['timeout'])
-                except BaseException:
+                except Exception as e:
                     logger.debug(str(sys.exc_info()))
                     pass
 
@@ -417,7 +417,7 @@ def send_mutual_add_requests(peers, get_further_peers=False):
                 logger.info("(send_mutual_add_requests) contacted " +
                             str(peer_addr) + ", received " +
                             str(status_code))
-            except BaseException:
+            except Exception as e:
                 logger.debug(
                     "(send_mutual_add_requests) no response from peer, "
                     "did not add: " + str(sys.exc_info()))
