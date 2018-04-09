@@ -4,7 +4,7 @@ import ecdsa
 import base58
 
 
-# Assuming all input and output is in hex (apart from get_kp where input is string)
+# Assuming all input and output is hex (apart from get_kp where input is string)
 # Message is always bytes
 def get_kp(privkey=None):
     if not privkey:
@@ -76,4 +76,5 @@ def test():
     print(pubkey_to_addr(pubkey))
     
     signature = sign(message, privkey)
-    print("Successfully verified signed message " + str(message) + ": " +  str(verify(message, signature, pubkey)))
+    print("Successfully verified signed message "
+          + str(message) + ": " + str(verify(message, signature, pubkey)))
