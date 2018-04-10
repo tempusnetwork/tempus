@@ -1,4 +1,4 @@
-from clockchain import median_ts
+from logic.clockchain import median_ts
 
 
 def test_median_ts():

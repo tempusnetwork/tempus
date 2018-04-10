@@ -1,10 +1,10 @@
 import json
 import time
 import logging
-import helpers as c  # c will contain config and common variables
-from pki import get_kp, pubkey_to_addr, sign
-from helpers import utcnow, standard_encode, hasher, mine
-from validation import validate_ping
+from utils import helpers as c
+from utils.pki import get_kp, pubkey_to_addr, sign
+from utils.helpers import utcnow, standard_encode, hasher, mine
+from utils.validation import validate_ping
 
 logger = logging.getLogger('clocklog')
 

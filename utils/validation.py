@@ -5,11 +5,11 @@ import ecdsa
 import jsonref
 import logging
 import traceback
-import helpers as c
+from utils import helpers as c
 
-from pki import verify, pubkey_to_addr
+from utils.pki import verify, pubkey_to_addr
 from jsonschema import validate
-from helpers import hasher
+from utils.helpers import hasher
 
 logger = logging.getLogger('clocklog')
 
