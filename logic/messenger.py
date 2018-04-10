@@ -1,7 +1,7 @@
 import random
 import time
 from expiringdict import ExpiringDict
-
+from config.loader import config
 
 class Messenger(object):
     def __init__(self):
@@ -9,8 +9,8 @@ class Messenger(object):
 
         # cache to avoid processing duplicate json forwards
         self.duplicate_cache = ExpiringDict(
-            max_len=c.config['expiring_dict_max_len'],
-            max_age_seconds=c.config['expiring_dict_max_age'])
+            max_len=config['expiring_dict_max_len'],
+            max_age_seconds=config['expiring_dict_max_age'])
 
     def check_duplicate(self, values):
         # Check if dict values has been received in the past x seconds
@@ -62,7 +62,7 @@ class Messenger(object):
         # reach all corners and nodes of network
 
         # Dont forward to peers if exceeding certain amount of hops
-        if redistribute < c.config['max_hops']:
+        if redistribute < config['max_hops']:
             # TODO: What happens if malicious actor fakes the ?addr= ?? or the
             # amount of hops?
             for peer in self.peers:
@@ -72,7 +72,7 @@ class Messenger(object):
                         requests.post(
                             peer + '/forward/' + route + '?addr=' + origin +
                             "&redistribute=" + str(redistribute + 1),
-                            json=data_dict, timeout=c.config['timeout'])
+                            json=data_dict, timeout=config['timeout'])
                 except Exception as e:
                     logger.debug(str(sys.exc_info()))
                     pass
@@ -96,7 +96,7 @@ def send_mutual_add_requests(peers, get_further_peers=False):
                 response = requests.post(
                     peer + '/mutual_add',
                     json=content,
-                    timeout=c.config['timeout'])
+                    timeout=config['timeout'])
                 peer_addr = response.text
                 status_code = response.status_code
                 logger.info("contacted " +
@@ -131,7 +131,7 @@ def join_network_worker():
 
     # First add seeds, and get the seeds peers
     peers_of_seeds = send_mutual_add_requests(
-        c.config['seeds'], get_further_peers=True)
+        config['seeds'], get_further_peers=True)
 
     # Then add the peers of seeds
     # TODO: Have seeds only return max 8 randomly chosen peers?

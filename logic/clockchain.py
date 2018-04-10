@@ -1,10 +1,10 @@
 import json
 import time
 import logging
-from utils import helpers as c
 from utils.pki import get_kp, pubkey_to_addr, sign
 from utils.helpers import utcnow, standard_encode, hasher, mine
 from utils.validation import validate_ping
+from config.loader import config
 
 logger = logging.getLogger('clocklog')
 
@@ -19,14 +19,14 @@ class Clockchain(object):
         # TODO: Figure out how to decide common genesis
         # tick if all start with diff hashes..
         # Use reward address as identifier for this node
-        if c.config['generate_rand_addr']:
+        if config['generate_rand_addr']:
             self.pubkey, self.privkey = get_kp()
             self.addr = pubkey_to_addr(self.pubkey)
             logger.debug("Using random addr + privkey: " + self.privkey)
         else:
             # Assumes priv.json exists containing fixed private key
             # This file is in .gitignore so you don't publish your privkey..
-            with open(c.dir_path + '/config/priv.json') as privkey_file:
+            with open(dir_path + '/config/priv.json') as privkey_file:
                 privkey = json.load(privkey_file)
 
             self.pubkey, self.privkey = get_kp(privkey=privkey['priv'])

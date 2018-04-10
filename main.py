@@ -1,21 +1,15 @@
 import os
 import logging
 import coloredlogs
-import json
-
 import threading
 from argparse import ArgumentParser
+from config.loader import config
 from logic.clockchain import ping_worker, tick_worker
 from flask import Flask
 from logging.handlers import TimedRotatingFileHandler
 
 # Instantiate node
 app = Flask(__name__)
-
-dir_path = os.path.dirname(os.path.realpath(__file__))
-
-with open(dir_path + '/config/config.json') as config_file:
-    config = json.load(config_file)
 
 logging_formatter = logging.Formatter(fmt=
                                       '%(asctime)s %(module)s %(threadName)s'
@@ -50,9 +44,6 @@ coloredlogs.install(level='DEBUG', logger=logger,
 
 
 if __name__ == '__main__':
-    # Set current working directory to the directory of this file
-    os.chdir(c.dir_path)
-
     logger = logging.getLogger('clocklog')
 
     parser = ArgumentParser()

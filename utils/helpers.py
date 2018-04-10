@@ -4,6 +4,7 @@ import socket
 import random
 import hashlib
 from datetime import datetime
+from config.loader import config
 from utils.validation import validate_difficulty
 
 

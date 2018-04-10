@@ -6,7 +6,7 @@ import jsonref
 import logging
 import traceback
 from utils import helpers as c
-
+from config.loader import config
 from utils.pki import verify, pubkey_to_addr
 from jsonschema import validate
 from utils.helpers import hasher
@@ -33,7 +33,7 @@ def validate_schema(dictionary, schema_file):
 
 
 def validate_difficulty(hash):
-    difficulty = c.config['difficulty']
+    difficulty = config['difficulty']
     if hash[-difficulty:] == "0" * difficulty:
         return True
     else:
