@@ -3,8 +3,9 @@ import logging
 import coloredlogs
 import threading
 from argparse import ArgumentParser
-from config.loader import config
+from utils.helpers import config, logger
 from logic.clockchain import ping_worker, tick_worker
+from logic.messenger import join_network_worker
 from flask import Flask
 from logging.handlers import TimedRotatingFileHandler
 
@@ -29,7 +30,6 @@ handler = TimedRotatingFileHandler(config['log_file'], backupCount=3,
 handler.suffix = "%Y-%m-%d.log"
 
 handler.setFormatter(logging_formatter)
-logger = logging.getLogger('clocklog')
 logger.addHandler(handler)
 logger.setLevel(logging.DEBUG)
 
@@ -42,10 +42,7 @@ logging.getLogger('clocklog').addHandler(console)
 coloredlogs.install(level='DEBUG', logger=logger,
                     fmt='(%(threadName)-10s) (%(funcName)s) %(message)s')
 
-
 if __name__ == '__main__':
-    logger = logging.getLogger('clocklog')
-
     parser = ArgumentParser()
     parser.add_argument('-p', '--port', default=5000,
                         type=int, help='port to listen on')

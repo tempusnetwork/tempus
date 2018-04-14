@@ -1,14 +1,9 @@
-import logging
 import requests
 from urllib.parse import urlparse
-
 from flask import jsonify, request
-from config.loader import config
 from utils.validation import validate_tick, validate_ping, validate_schema
 from utils.pki import pubkey_to_addr, verify
-from utils.helpers import remap, resolve, standard_encode
-
-logger = logging.getLogger('clocklog')
+from utils.helpers import remap, resolve, standard_encode, config, logger
 
 
 @app.route('/forward/tick', methods=['POST'])

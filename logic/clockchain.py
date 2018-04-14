@@ -1,12 +1,9 @@
 import json
 import time
-import logging
 from utils.pki import get_kp, pubkey_to_addr, sign
-from utils.helpers import utcnow, standard_encode, hasher, mine
+from utils.helpers import utcnow, standard_encode, \
+    hasher, mine, config, logger, dir_path
 from utils.validation import validate_ping
-from config.loader import config
-
-logger = logging.getLogger('clocklog')
 
 
 class Clockchain(object):

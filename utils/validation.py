@@ -3,19 +3,15 @@ import sys
 import copy
 import ecdsa
 import jsonref
-import logging
 import traceback
 from utils import helpers as c
-from config.loader import config
 from utils.pki import verify, pubkey_to_addr
 from jsonschema import validate
-from utils.helpers import hasher
-
-logger = logging.getLogger('clocklog')
+from utils.helpers import hasher, config, dir_path, logger
 
 
 def validate_schema(dictionary, schema_file):
-    absolute_path = c.dir_path + '/schemas/' + schema_file
+    absolute_path = dir_path + '/schemas/' + schema_file
 
     base_path = os.path.dirname(absolute_path)
     base_uri = 'file://{}/'.format(base_path)
