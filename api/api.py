@@ -1,66 +1,48 @@
 import requests
 from urllib.parse import urlparse
 from flask import jsonify, request, Flask
-from utils.validation import validate_tick, validate_ping, validate_schema
 from utils.pki import pubkey_to_addr, verify
 from utils.helpers import remap, resolve, standard_encode, config, logger
+from utils.validation import validate_tick, validate_ping, validate_schema
 
 
-class API(object):
+def create_app(messenger, clockchain):
     app = Flask(__name__)
 
-    # TODO: See if MVC fits this (API = view, LOGIC = model)
-    # TODO: In that case, all references to clockchain and messenger must
-    # TODO: Be removed. However, as seen below, this is still tightly coupled..
-    def __init__(self, port, clockchain, messenger):
-        self.clockchain = clockchain
-        self.messenger = messenger
-        self.port = port
-
-        # Try ports until one succeeds
-        while True:
-            try:
-                API.app.run(host='127.0.0.1', port=self.port)
-                break
-            except OSError:
-                self.port = self.port + 1
-                pass
-
     @app.route('/forward/tick', methods=['POST'])
-    def forward_tick(self):
+    def forward_tick():
         tick = request.get_json()
 
-        if self.messenger.check_duplicate(tick):
+        if messenger.check_duplicate(tick):
             return "duplicate request please wait 10s", 400
 
         if not validate_tick(tick):
             return "Invalid tick", 400
 
-        self.clockchain.chain.append(tick)
-        self.clockchain.restart_tick()
+        clockchain.chain.append(tick)
+        clockchain.restart_tick()
 
         # TODO: Sanitize this input..
         redistribute = int(request.args.get('redistribute'))
         if redistribute:
             origin = request.args.get('addr')
-            self.messenger.forward(tick, 'tick', origin,
-                                   redistribute=redistribute)
+            messenger.forward(tick, 'tick', origin, redistribute=redistribute)
 
         return "Added tick", 201
 
     @app.route('/forward/ping', methods=['POST'])
-    def forward_ping(self):
+    def forward_ping():
         ping = request.get_json()
-        if self.messenger.check_duplicate(ping):
+        if messenger.check_duplicate(ping):
             return "duplicate request please wait 10s", 400
 
-        if not validate_ping(ping, self.clockchain.pingpool,
+        if not validate_ping(ping, clockchain.pingpool,
                              check_in_pool=True):
             return "Invalid ping", 400
 
         # Add to pool
         addr = pubkey_to_addr(ping['pubkey'])
-        self.clockchain.pingpool[addr] = ping
+        clockchain.pingpool[addr] = ping
 
         # TODO: Why would anyone forward others pings? Only incentivized
         # to forward own pings (to get highest uptime)
@@ -69,8 +51,7 @@ class API(object):
         redistribute = int(request.args.get('redistribute'))
         if redistribute:
             origin = request.args.get('addr')
-            self.messenger.forward(ping, 'ping', origin,
-                                   redistribute=redistribute)
+            messenger.forward(ping, 'ping', origin, redistribute=redistribute)
 
         return "Added ping", 201
 
@@ -80,7 +61,7 @@ class API(object):
     # https://bitcoin.stackexchange.com/questions/3536/
     # how-do-bitcoin-clients-find-each-other/11273
     @app.route('/mutual_add', methods=['POST'])
-    def mutual_add(self):
+    def mutual_add():
         values = request.get_json()
 
         # Verify json schema
@@ -115,36 +96,38 @@ class API(object):
                 logger.info("Received request signed with key not matching host")
                 return "Signature does not match address of provided host", 400
 
-            if not self.messenger.register_peer(remote_url, addr):
+            if not messenger.register_peer(remote_url, addr):
                 return "Could not register peer", 400
             else:  # Make sure the new joiner gets my pings (if I have any)
-                if self.clockchain.addr in self.clockchain.pingpool:
-                    ping = self.clockchain.pingpool[self.clockchain.addr]
+                if clockchain.addr in clockchain.pingpool:
+                    ping = clockchain.pingpool[clockchain.addr]
                     # Forward but do not redistribute
                     requests.post(
                         remote_url + '/forward/ping?addr=' +
-                        self.clockchain.addr + "&redistribute=0",
+                        clockchain.addr + "&redistribute=0",
                         json=ping,
                         timeout=config['timeout'])
-        return self.clockchain.addr, 201
+        return clockchain.addr, 201
 
     @app.route('/info/clockchain', methods=['GET'])
-    def info_clockchain(self):
+    def info_clockchain():
         response = {
-            'chain': self.clockchain.chain,
-            'length': len(self.clockchain.chain),
+            'chain': clockchain.chain,
+            'length': len(clockchain.chain),
         }
         return jsonify(response), 200
 
     @app.route('/info/addr', methods=['GET'])
-    def info(self):
-        return self.clockchain.addr, 200
+    def info():
+        return clockchain.addr, 200
 
     @app.route('/info/peers', methods=['GET'])
-    def info_peers(self):
-        return jsonify({'peers': list(self.messenger.peers.keys())}), 200
+    def info_peers():
+        return jsonify({'peers': list(messenger.peers.keys())}), 200
 
     @app.route('/info/pingpool', methods=['GET'])
-    def info_pingpool(self):
+    def info_pingpool():
         # Remap cause we can't jsonify dict directly
-        return jsonify(remap(self.clockchain.pingpool)), 200
+        return jsonify(remap(clockchain.pingpool)), 200
+
+    return app

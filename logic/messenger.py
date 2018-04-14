@@ -1,31 +1,48 @@
-import random
-import time
 import sys
 import json
-from expiringdict import ExpiringDict
-from utils.helpers import config, logger, hasher, standard_encode
-from urllib.parse import urlparse
-from utils.pki import sign, pubkey_to_addr, get_kp
+import time
+import random
 import requests
 import threading
 
+from threading import Timer
+from urllib.parse import urlparse
+from expiringdict import ExpiringDict
+from utils.pki import sign, pubkey_to_addr, get_kp
+from utils.helpers import config, logger, hasher, standard_encode
+
 
 class Messenger(object):
-    def __init__(self, port, privkey):
+    def __init__(self, privkey):
         self.privkey = privkey
         self.pubkey, _ = get_kp(privkey=self.privkey)
         self.addr = pubkey_to_addr(self.pubkey)
 
-        self.port = port
         self.peers = {}
+        self.port = 0
+        self.ready = False
         self.join_network_thread = threading.Thread(target=
                                                     self.join_network_worker)
-        self.join_network_thread.start()
 
         # cache to avoid processing duplicate json forwards
         self.duplicate_cache = ExpiringDict(
             max_len=config['expiring_dict_max_len'],
             max_age_seconds=config['expiring_dict_max_age'])
+        # TODO: Magic number
+        self.t = Timer(3, self.activate)
+
+    def activate(self):
+        self.join_network_thread.start()
+
+    def set_port(self, port):
+        # This timer start and resetting necessary to get the correct port..
+        self.t.cancel()
+        # TODO: Magic number
+        self.t = Timer(3, self.activate)
+        self.port = port
+        logger.debug("Trying port " + str(self.port))
+        # Starting thread here because port needs to be properly set first
+        self.t.start()
 
     def check_duplicate(self, values):
         # Check if dict values has been received in the past x seconds
@@ -111,16 +128,15 @@ class Messenger(object):
                         peer + '/mutual_add',
                         json=content,
                         timeout=config['timeout'])
-                    peer_addr = response.text
+
                     status_code = response.status_code
-                    logger.info("contacted " +
-                                str(peer_addr) + ", received " +
-                                str(status_code))
+                    logger.info("Status for peer adding: " + str(status_code))
                 except Exception as e:
                     logger.debug("no response from peer: " + str(sys.exc_info()))
                     continue
                 if status_code == 201:
                     logger.info("Adding peer " + str(peer))
+                    peer_addr = response.text
                     self.register_peer(peer, peer_addr)
 
                     # Get all peers of current discovered peers and add to set
@@ -138,7 +154,7 @@ class Messenger(object):
     def join_network_worker(self):
         # Sleeping random amount to not have seed-clash (cannot do circular
         #  adding of peers at the exact same time as seeds)
-        sleeptime = random.randrange(3000) / 1000.0
+        sleeptime = 2 + random.randrange(3000) / 1000.0
         logger.debug("Sleeping for " + str(sleeptime) + "s before network join")
         time.sleep(sleeptime)
 
@@ -153,5 +169,5 @@ class Messenger(object):
         logger.debug("Peers: " + str(self.peers))
 
         # TODO: Sync latest chain with peers (choosing what the majority?)
-
         logger.debug("Finished joining network")
+        self.ready = True

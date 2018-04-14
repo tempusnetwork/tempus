@@ -1,8 +1,7 @@
-import time
 import threading
+from utils.validation import validate_ping
 from utils.pki import pubkey_to_addr, sign, get_kp
 from utils.helpers import utcnow, standard_encode, hasher, mine, logger
-from utils.validation import validate_ping
 
 
 class Clockchain(object):
@@ -28,8 +27,17 @@ class Clockchain(object):
 
         self.ping_thread = threading.Thread(target=self.ping_worker)
         self.tick_thread = threading.Thread(target=self.tick_worker)
-        self.ping_thread.start()
-        self.tick_thread.start()
+        self.activation_thread = threading.Thread(target=self.activate)
+        self.activation_thread.start()
+
+    def activate(self):
+        while True:
+            if self.messenger.ready:
+                self.ping_thread.start()
+                self.tick_thread.start()
+                break
+            else:
+                continue
 
     def current_tick_ref(self):
         return hasher(self.chain[-1])
@@ -40,7 +48,6 @@ class Clockchain(object):
 
     def ping_worker(self):
         while True:
-            time.sleep(20)
             if not self.added_ping:
                 logger.debug("Havent pinged this round! Starting to mine..")
                 ping = {'pubkey': self.pubkey,

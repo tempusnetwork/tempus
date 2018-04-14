@@ -1,7 +1,7 @@
+import json
 import pytz
 import socket
 import random
-import json
 import os.path
 import logging
 import hashlib
@@ -39,7 +39,7 @@ logger.setLevel(logging.DEBUG)
 
 # Print to console as well
 console = logging.StreamHandler()
-console.setLevel(logging.INFO)
+console.setLevel(logging.DEBUG)
 console.setFormatter(console_formatter)
 logger.addHandler(console)
 
