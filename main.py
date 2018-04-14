@@ -1,45 +1,14 @@
-import os
-import logging
 import threading
 from argparse import ArgumentParser
-from utils.helpers import config, logger
 from logic.clockchain import ping_worker, tick_worker
 from logic.messenger import join_network_worker
 from flask import Flask
-from logging.handlers import TimedRotatingFileHandler
-
-# Instantiate node
-app = Flask(__name__)
-
-logging_formatter = logging.Formatter(fmt=
-                                      '%(asctime)s %(module)s %(threadName)s'
-                                      ' %(levelname)s: %(message)s',
-                                      datefmt='%Y-%m-%d %H:%M:%S')
-console_formatter = logging.Formatter(fmt=
-                                      '%(asctime)s %(module)-20s '
-                                      '%(threadName)-20s'
-                                      '%(levelname)-8s: '
-                                      '%(message)s',
-                                      datefmt='%Y-%m-%d %H:%M:%S')
-
-# Dated files for logging
-os.makedirs(os.path.dirname(config['log_file']), exist_ok=True)
-handler = TimedRotatingFileHandler(config['log_file'], backupCount=3,
-                                   interval=1, when="d")
-handler.suffix = "%Y-%m-%d.log"
-
-handler.setFormatter(logging_formatter)
-logger.addHandler(handler)
-logger.setLevel(logging.DEBUG)
-
-# Print to console as well
-console = logging.StreamHandler()
-console.setLevel(logging.INFO)
-console.setFormatter(console_formatter)
-logging.getLogger('clocklog').addHandler(console)
 
 
 if __name__ == '__main__':
+    # Instantiate node
+    app = Flask(__name__)
+
     parser = ArgumentParser()
     parser.add_argument('-p', '--port', default=5000,
                         type=int, help='port to listen on')
