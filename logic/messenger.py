@@ -5,13 +5,22 @@ import json
 from expiringdict import ExpiringDict
 from utils.helpers import config, logger, hasher, standard_encode
 from urllib.parse import urlparse
-from utils.pki import sign
+from utils.pki import sign, pubkey_to_addr, get_kp
 import requests
+import threading
 
 
 class Messenger(object):
-    def __init__(self):
+    def __init__(self, port, privkey):
+        self.privkey = privkey
+        self.pubkey, _ = get_kp(privkey=self.privkey)
+        self.addr = pubkey_to_addr(self.pubkey)
+
+        self.port = port
         self.peers = {}
+        self.join_network_thread = threading.Thread(target=
+                                                    self.join_network_worker)
+        self.join_network_thread.start()
 
         # cache to avoid processing duplicate json forwards
         self.duplicate_cache = ExpiringDict(
@@ -87,64 +96,62 @@ class Messenger(object):
         netloc = urlparse(url).netloc
         del self.peers[netloc]
 
+    def send_mutual_add_requests(self, peerslist, get_further_peers=False):
+        # Preparing a set of further peers to possibly add later on
+        peers_of_peers = set()
 
-def send_mutual_add_requests(peers, get_further_peers=False):
-    # Preparing a set of further peers to possibly add later on
-    peers_of_peers = set()
+        # Mutual add peers
+        for peer in peerslist:
+            if peer not in self.peers:
+                content = {"port": self.port, 'pubkey': self.pubkey}
+                signature = sign(standard_encode(content), self.privkey)
+                content['signature'] = signature
+                try:
+                    response = requests.post(
+                        peer + '/mutual_add',
+                        json=content,
+                        timeout=config['timeout'])
+                    peer_addr = response.text
+                    status_code = response.status_code
+                    logger.info("contacted " +
+                                str(peer_addr) + ", received " +
+                                str(status_code))
+                except Exception as e:
+                    logger.debug("no response from peer: " + str(sys.exc_info()))
+                    continue
+                if status_code == 201:
+                    logger.info("Adding peer " + str(peer))
+                    self.register_peer(peer, peer_addr)
 
-    # Mutual add peers
-    for peer in peers:
-        if peer not in messenger.peers:
-            content = {"port": port, 'pubkey': clockchain.pubkey}
-            signature = sign(standard_encode(content), clockchain.privkey)
-            content['signature'] = signature
-            try:
-                response = requests.post(
-                    peer + '/mutual_add',
-                    json=content,
-                    timeout=config['timeout'])
-                peer_addr = response.text
-                status_code = response.status_code
-                logger.info("contacted " +
-                            str(peer_addr) + ", received " +
-                            str(status_code))
-            except Exception as e:
-                logger.debug("no response from peer: " + str(sys.exc_info()))
-                continue
-            if status_code == 201:
-                logger.info("Adding peer " + str(peer))
-                messenger.register_peer(peer, peer_addr)
+                    # Get all peers of current discovered peers and add to set
+                    # (set is to avoid duplicates)
+                    # Essentially going one degree further out in network. From
+                    # current peers to their peers
+                    if get_further_peers:
+                        next_peers = json.loads(
+                            requests.get(peer + '/info/peers').text)
+                        for next_peer in next_peers['peers']:
+                            peers_of_peers.add(next_peer)
 
-                # Get all peers of current discovered peers and add to set
-                # (set is to avoid duplicates)
-                # Essentially going one degree further out in network. From
-                # current peers to their peers
-                if get_further_peers:
-                    next_peers = json.loads(
-                        requests.get(peer + '/info/peers').text)
-                    for next_peer in next_peers['peers']:
-                        peers_of_peers.add(next_peer)
+        return list(peers_of_peers)
 
-    return list(peers_of_peers)
+    def join_network_worker(self):
+        # Sleeping random amount to not have seed-clash (cannot do circular
+        #  adding of peers at the exact same time as seeds)
+        sleeptime = random.randrange(3000) / 1000.0
+        logger.debug("Sleeping for " + str(sleeptime) + "s before network join")
+        time.sleep(sleeptime)
 
+        # First add seeds, and get the seeds peers
+        peers_of_seeds = self.send_mutual_add_requests(
+            config['seeds'], get_further_peers=True)
 
-def join_network_worker():
-    # Sleeping random amount to not have seed-clash (cannot do circular adding
-    # of peers at the exact same time as seeds)
-    sleeptime = random.randrange(3000) / 1000.0
-    logger.debug("Sleeping for " + str(sleeptime) + "s before joining network")
-    time.sleep(sleeptime)
+        # Then add the peers of seeds
+        # TODO: Have seeds only return max 8 randomly chosen peers?
+        self.send_mutual_add_requests(peers_of_seeds)
 
-    # First add seeds, and get the seeds peers
-    peers_of_seeds = send_mutual_add_requests(
-        config['seeds'], get_further_peers=True)
+        logger.debug("Peers: " + str(self.peers))
 
-    # Then add the peers of seeds
-    # TODO: Have seeds only return max 8 randomly chosen peers?
-    send_mutual_add_requests(peers_of_seeds)
+        # TODO: Sync latest chain with peers (choosing what the majority?)
 
-    logger.debug("Peers: " + str(messenger.peers))
-
-    # TODO: Synchronizing latest chain with peers (choosing what the majority?)
-
-    logger.debug("Finished joining network")
+        logger.debug("Finished joining network")

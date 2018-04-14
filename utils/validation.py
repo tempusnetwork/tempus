@@ -87,13 +87,13 @@ def validate_tick(tick):
     return True
 
 
-def validate_ping(ping, check_in_pool=True):
+def validate_ping(ping, pingpool, check_in_pool=True):
     if not validate_schema(ping, 'ping_schema.json'):
         return False
 
     # Check addr already not in dict
     if check_in_pool:
-        if pubkey_to_addr(ping['pubkey']) in self.pingpool:
+        if pubkey_to_addr(ping['pubkey']) in pingpool:
             return False
 
     # Check hash and sig, keeping in mind signature might be popped off
