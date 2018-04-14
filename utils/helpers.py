@@ -6,7 +6,6 @@ import os.path
 import logging
 import hashlib
 from datetime import datetime
-from utils.validation import validate_difficulty
 
 # Global variables
 config_path = os.path.dirname(os.path.realpath(__file__))
@@ -43,6 +42,8 @@ def hasher(dictionary):
 
 # TODO: Do this in C or other efficient lib..
 def mine(content=None):
+    # Importing here to avoid circular dependency
+    from utils.validation import validate_difficulty
     nonce = random.randrange(config['max_randint'])
     while True:
         content['nonce'] = nonce

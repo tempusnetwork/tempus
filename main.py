@@ -1,6 +1,5 @@
 import os
 import logging
-import coloredlogs
 import threading
 from argparse import ArgumentParser
 from utils.helpers import config, logger
@@ -39,8 +38,6 @@ console.setLevel(logging.INFO)
 console.setFormatter(console_formatter)
 logging.getLogger('clocklog').addHandler(console)
 
-coloredlogs.install(level='DEBUG', logger=logger,
-                    fmt='(%(threadName)-10s) (%(funcName)s) %(message)s')
 
 if __name__ == '__main__':
     parser = ArgumentParser()
