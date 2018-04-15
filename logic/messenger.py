@@ -28,20 +28,20 @@ class Messenger(object):
         self.duplicate_cache = ExpiringDict(
             max_len=config['expiring_dict_max_len'],
             max_age_seconds=config['expiring_dict_max_age'])
-        # TODO: Magic number
-        self.t = Timer(3, self.activate)
+        # Timer for activation thread (uses resettable timer to find out port)
+        self.t = Timer(config['port_timer_timeout'], self.activate)
 
     def activate(self):
         self.join_network_thread.start()
 
     def set_port(self, port):
         # This timer start and resetting necessary to get the correct port..
+        # I.e. if port is blocked, this method gets called again until timer
+        # is allowed to finally elapse and start the join network thread
         self.t.cancel()
-        # TODO: Magic number
-        self.t = Timer(3, self.activate)
+        self.t = Timer(config['port_timer_timeout'], self.activate)
         self.port = port
         logger.debug("Trying port " + str(self.port))
-        # Starting thread here because port needs to be properly set first
         self.t.start()
 
     def check_duplicate(self, values):
@@ -132,7 +132,7 @@ class Messenger(object):
                     status_code = response.status_code
                     logger.info("Status for peer adding: " + str(status_code))
                 except Exception as e:
-                    logger.debug("no response from peer: " + str(sys.exc_info()))
+                    logger.debug("peer didn't respond: " + str(sys.exc_info()))
                     continue
                 if status_code == 201:
                     logger.info("Adding peer " + str(peer))

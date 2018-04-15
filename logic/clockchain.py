@@ -1,4 +1,5 @@
 import threading
+import time
 from utils.validation import validate_ping
 from utils.pki import pubkey_to_addr, sign, get_kp
 from utils.helpers import utcnow, standard_encode, hasher, mine, logger
@@ -17,9 +18,7 @@ class Clockchain(object):
 
         logger.debug("This node is " + self.addr)
 
-        # TODO: Figure out how to decide common genesis
-        # tick if all start with diff hashes..
-        # Create genesis tick
+        # TODO: Figure out how to decide common genesis tick if diff starthash
         # TODO: Re-adapt this to use signatures
         genesis_addr = "tempigFUe1uuRsAQ7WWNpb5r97pDCJ3wp9"
         self.chain.append(
@@ -31,7 +30,12 @@ class Clockchain(object):
         self.activation_thread.start()
 
     def activate(self):
+        # TODO: Remove tight coupling below between clockchain and messenger
+        # This is a bit of an ugly hack to check whether the messenger is done
+        # with connecting to his peers, before starting the clockchain processes
+        # This control should be done by main.py
         while True:
+            time.sleep(1)
             if self.messenger.ready:
                 self.ping_thread.start()
                 self.tick_thread.start()
