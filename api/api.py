@@ -6,7 +6,8 @@ from utils.helpers import remap, resolve, standard_encode, config, logger
 from utils.validation import validate_tick, validate_ping, validate_schema
 
 
-def create_app(messenger, clockchain):
+# TODO: Redo this to message queue?
+def create_api(messenger, clockchain):
     app = Flask(__name__)
 
     @app.route('/forward/tick', methods=['POST'])

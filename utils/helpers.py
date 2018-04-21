@@ -12,6 +12,7 @@ from logging.handlers import TimedRotatingFileHandler
 config_path = os.path.dirname(os.path.realpath(__file__))
 dir_path = os.path.abspath(os.path.join(config_path, os.pardir))
 logger = logging.getLogger('clocklog')
+
 with open(config_path + '/config.json') as config_file:
     config = json.load(config_file)
 

@@ -8,15 +8,13 @@ import threading
 from threading import Timer
 from urllib.parse import urlparse
 from expiringdict import ExpiringDict
-from utils.pki import sign, pubkey_to_addr, get_kp
+from utils.pki import sign
 from utils.helpers import config, logger, hasher, standard_encode
 
 
 class Messenger(object):
-    def __init__(self, privkey):
-        self.privkey = privkey
-        self.pubkey, _ = get_kp(privkey=self.privkey)
-        self.addr = pubkey_to_addr(self.pubkey)
+    def __init__(self, clockchain):
+        self.clockchain = clockchain
 
         self.peers = {}
         self.port = 0
@@ -66,7 +64,7 @@ class Messenger(object):
         netloc = "http://" + netloc
 
         # Avoid adding self
-        if peer_addr == self.addr:
+        if peer_addr == self.clockchain.addr:
             return False
 
         # Avoid adding already existing netloc
@@ -120,8 +118,9 @@ class Messenger(object):
         # Mutual add peers
         for peer in peerslist:
             if peer not in self.peers:
-                content = {"port": self.port, 'pubkey': self.pubkey}
-                signature = sign(standard_encode(content), self.privkey)
+                content = {"port": self.port, 'pubkey': self.clockchain.pubkey}
+                signature = sign(standard_encode(content),
+                                 self.clockchain.privkey)
                 content['signature'] = signature
                 try:
                     response = requests.post(

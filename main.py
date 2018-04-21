@@ -1,10 +1,12 @@
 import json
 from utils.pki import get_kp
-from api.api import create_app
+from api.api import create_api
 from argparse import ArgumentParser
 from logic.messenger import Messenger
 from logic.clockchain import Clockchain
+from logic.timeminer import Timeminer
 from utils.helpers import config, logger, dir_path
+from queue import Queue
 
 if __name__ == '__main__':
     # Instantiate node
@@ -26,21 +28,27 @@ if __name__ == '__main__':
             privkey = json.load(privkey_file)
         _, privkey = get_kp(privkey=privkey['priv'])
 
-    messenger = Messenger(privkey)
+    clockchain = Clockchain(privkey)
+    # TODO: Implement message queue for async communications..
 
-    # TODO: Decouple clockchain and messenger... but then must move workers out
-    # TODO: In that case, clockchain will be more of a datastructure
-    # TODO: And workers would be somewhere else
-    clockchain = Clockchain(messenger, privkey)
+    message_queue = Queue()
 
-    app = create_app(messenger, clockchain)
+    messenger = Messenger(message_queue, clockchain)
 
+    # TODO: Block until messenger is "ready", do this with threading...
+    messenger.join()
+
+    timeminer = Timeminer(message_queue, clockchain)
+
+    api = create_api(message_queue, clockchain)
+
+    # TODO: When project is dockerized below is not needed anymore
     # Try ports until one succeeds
     while True:
         try:
             messenger.set_port(port)
-            app.run(host='127.0.0.1', port=port)
-            break  # !Leave this here so infinite loop stops!
+            api.run(host='127.0.0.1', port=port)
+            break  # Leave break here so infinite loop stops!
         except OSError:
             port = port + 1
             pass
