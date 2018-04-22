@@ -1,15 +1,32 @@
 import json
-from utils.pki import get_kp
+import os.path
+from queue import Queue
 from api.api import create_api
 from argparse import ArgumentParser
-from logic.messenger import Messenger
-from logic.clockchain import Clockchain
+from logic.networker import Networker
 from logic.timeminer import Timeminer
-from utils.helpers import config, logger, dir_path
-from queue import Queue
+from logic.clockchain import Clockchain
+
+# Main contains global variables that should be accessible in all modules
+
+# Load config path
+config_path = os.path.dirname(os.path.realpath(__file__))
+
+# Load parent folder path
+dir_path = os.path.abspath(os.path.join(config_path, os.pardir))
+
+# Load config file
+with open(config_path + '/config.json') as config_file:
+    config = json.load(config_file)
+
+# Set up global instances, these are not active until .activate() is run
+message_queue = Queue()
+clockchain = Clockchain()
+networker = Networker()
+timeminer = Timeminer()
 
 if __name__ == '__main__':
-    # Instantiate node
+    # Parse port as command line argument
     parser = ArgumentParser()
     parser.add_argument('-p', '--port', default=5000,
                         type=int, help='port to listen on')
@@ -17,36 +34,17 @@ if __name__ == '__main__':
     args = parser.parse_args()
     port = args.port
 
-    # Use reward address as identifier for this node
-    if config['generate_rand_addr']:
-        _, privkey = get_kp()
-        logger.debug("Using random addr + privkey: " + privkey)
-    else:
-        # Assumes priv.json exists containing fixed private key
-        # This file is in .gitignore so you don't publish your privkey..
-        with open(dir_path + '/utils/priv.json') as privkey_file:
-            privkey = json.load(privkey_file)
-        _, privkey = get_kp(privkey=privkey['priv'])
-
-    clockchain = Clockchain(privkey)
     # TODO: Implement message queue for async communications..
-
-    message_queue = Queue()
-
-    messenger = Messenger(message_queue, clockchain)
-
     # TODO: Block until messenger is "ready", do this with threading...
-    messenger.join()
+    networker.join()
 
-    timeminer = Timeminer(message_queue, clockchain)
-
-    api = create_api(message_queue, clockchain)
+    api = create_api()
 
     # TODO: When project is dockerized below is not needed anymore
     # Try ports until one succeeds
     while True:
         try:
-            messenger.set_port(port)
+            networker.set_port(port)
             api.run(host='127.0.0.1', port=port)
             break  # Leave break here so infinite loop stops!
         except OSError:

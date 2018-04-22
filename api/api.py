@@ -2,19 +2,21 @@ import requests
 from urllib.parse import urlparse
 from flask import jsonify, request, Flask
 from utils.pki import pubkey_to_addr, verify
-from utils.helpers import remap, resolve, standard_encode, config, logger
+from utils.helpers import remap, resolve, standard_encode
+from main import clockchain, config, networker
+from utils.loghandling import logger
 from utils.validation import validate_tick, validate_ping, validate_schema
 
 
 # TODO: Redo this to message queue?
-def create_api(messenger, clockchain):
+def create_api():
     app = Flask(__name__)
 
     @app.route('/forward/tick', methods=['POST'])
     def forward_tick():
         tick = request.get_json()
 
-        if messenger.check_duplicate(tick):
+        if networker.check_duplicate(tick):
             return "duplicate request please wait 10s", 400
 
         if not validate_tick(tick):
@@ -27,14 +29,14 @@ def create_api(messenger, clockchain):
         redistribute = int(request.args.get('redistribute'))
         if redistribute:
             origin = request.args.get('addr')
-            messenger.forward(tick, 'tick', origin, redistribute=redistribute)
+            networker.forward(tick, 'tick', origin, redistribute=redistribute)
 
         return "Added tick", 201
 
     @app.route('/forward/ping', methods=['POST'])
     def forward_ping():
         ping = request.get_json()
-        if messenger.check_duplicate(ping):
+        if networker.check_duplicate(ping):
             return "duplicate request please wait 10s", 400
 
         if not validate_ping(ping, clockchain.pingpool,
@@ -52,7 +54,7 @@ def create_api(messenger, clockchain):
         redistribute = int(request.args.get('redistribute'))
         if redistribute:
             origin = request.args.get('addr')
-            messenger.forward(ping, 'ping', origin, redistribute=redistribute)
+            networker.forward(ping, 'ping', origin, redistribute=redistribute)
 
         return "Added ping", 201
 
@@ -97,7 +99,7 @@ def create_api(messenger, clockchain):
                 logger.info("Received request signed with key not matching host")
                 return "Signature does not match address of provided host", 400
 
-            if not messenger.register_peer(remote_url, addr):
+            if not networker.register_peer(remote_url, addr):
                 return "Could not register peer", 400
             else:  # Make sure the new joiner gets my pings (if I have any)
                 if clockchain.addr in clockchain.pingpool:
@@ -124,7 +126,7 @@ def create_api(messenger, clockchain):
 
     @app.route('/info/peers', methods=['GET'])
     def info_peers():
-        return jsonify({'peers': list(messenger.peers.keys())}), 200
+        return jsonify({'peers': list(networker.peers.keys())}), 200
 
     @app.route('/info/pingpool', methods=['GET'])
     def info_pingpool():

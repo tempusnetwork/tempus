@@ -1,20 +1,21 @@
-import sys
 import json
 import time
 import random
 import requests
 import threading
 
+from utils.pki import sign
 from threading import Timer
 from urllib.parse import urlparse
 from expiringdict import ExpiringDict
-from utils.pki import sign
-from utils.helpers import config, logger, hasher, standard_encode
+
+from main import config, clockchain, message_queue
+from utils.loghandling import logger
+from utils.helpers import hasher, standard_encode, handle_exception
 
 
-class Messenger(object):
-    def __init__(self, clockchain):
-        self.clockchain = clockchain
+class Networker(object):
+    def __init__(self):
 
         self.peers = {}
         self.port = 0
@@ -64,7 +65,7 @@ class Messenger(object):
         netloc = "http://" + netloc
 
         # Avoid adding self
-        if peer_addr == self.clockchain.addr:
+        if peer_addr == clockchain.addr:
             return False
 
         # Avoid adding already existing netloc
@@ -103,8 +104,9 @@ class Messenger(object):
                             peer + '/forward/' + route + '?addr=' + origin +
                             "&redistribute=" + str(redistribute + 1),
                             json=data_dict, timeout=config['timeout'])
+
                 except Exception as e:
-                    logger.debug(str(sys.exc_info()))
+                    handle_exception(e)
                     pass
 
     def unregister_peer(self, url):
@@ -118,9 +120,9 @@ class Messenger(object):
         # Mutual add peers
         for peer in peerslist:
             if peer not in self.peers:
-                content = {"port": self.port, 'pubkey': self.clockchain.pubkey}
+                content = {"port": self.port, 'pubkey': clockchain.pubkey}
                 signature = sign(standard_encode(content),
-                                 self.clockchain.privkey)
+                                 clockchain.privkey)
                 content['signature'] = signature
                 try:
                     response = requests.post(
@@ -131,7 +133,7 @@ class Messenger(object):
                     status_code = response.status_code
                     logger.info("Status for peer adding: " + str(status_code))
                 except Exception as e:
-                    logger.debug("peer didn't respond: " + str(sys.exc_info()))
+                    handle_exception(e)
                     continue
                 if status_code == 201:
                     logger.info("Adding peer " + str(peer))

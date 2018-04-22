@@ -1,13 +1,11 @@
 import os
-import sys
 import copy
 import ecdsa
 import jsonref
-import traceback
-from utils import helpers as c
 from utils.pki import verify, pubkey_to_addr
 from jsonschema import validate
-from utils.helpers import hasher, config, dir_path, logger
+from utils.helpers import hasher, handle_exception, standard_encode
+from utils.globals import config, dir_path, logger
 
 
 def validate_schema(dictionary, schema_file):
@@ -22,8 +20,7 @@ def validate_schema(dictionary, schema_file):
     try:
         validate(dictionary, schema)
     except Exception as e:
-        logger.debug("Invalid/missing values: " + str(sys.exc_info()))
-        logger.debug(traceback.format_exc())
+        handle_exception(e)
         return False
     return True
 
@@ -37,6 +34,8 @@ def validate_difficulty(hash):
 
 
 def validate_sig_hash(item):
+    # The reason this is a combined check on sig+hash (instead of split methods)
+    # Is that the check needs to be performed simultaneously
     item_copy = copy.deepcopy(item)
     signature = item_copy.pop('signature', None)
 
@@ -53,7 +52,7 @@ def validate_sig_hash(item):
 
     # Validate signature
     try:
-        encoded_message = c.standard_encode(item_copy)
+        encoded_message = standard_encode(item_copy)
         if not verify(encoded_message, signature, item_copy['pubkey']):
             return False
     except ecdsa.BadSignatureError:
