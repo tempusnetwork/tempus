@@ -7,11 +7,9 @@ import threading
 from utils.pki import sign
 from threading import Timer
 from urllib.parse import urlparse
-from expiringdict import ExpiringDict
 
-from main import config, clockchain, message_queue
-from utils.loghandling import logger
-from utils.helpers import hasher, standard_encode, handle_exception
+from utils.common import logger, config, credentials
+from utils.helpers import standard_encode, handle_exception
 
 
 class Networker(object):
@@ -22,11 +20,6 @@ class Networker(object):
         self.ready = False
         self.join_network_thread = threading.Thread(target=
                                                     self.join_network_worker)
-
-        # cache to avoid processing duplicate json forwards
-        self.duplicate_cache = ExpiringDict(
-            max_len=config['expiring_dict_max_len'],
-            max_age_seconds=config['expiring_dict_max_age'])
         # Timer for activation thread (uses resettable timer to find out port)
         self.t = Timer(config['port_timer_timeout'], self.activate)
 
@@ -43,15 +36,6 @@ class Networker(object):
         logger.debug("Trying port " + str(self.port))
         self.t.start()
 
-    def check_duplicate(self, values):
-        # Check if dict values has been received in the past x seconds
-        # already..
-        if self.duplicate_cache.get(hasher(values)):
-            return True
-        else:
-            self.duplicate_cache[hasher(values)] = True
-            return False
-
     def register_peer(self, url, peer_addr):
         """
         Add a new peer to the list of peers
@@ -65,7 +49,7 @@ class Networker(object):
         netloc = "http://" + netloc
 
         # Avoid adding self
-        if peer_addr == clockchain.addr:
+        if peer_addr == credentials.addr:
             return False
 
         # Avoid adding already existing netloc
@@ -100,9 +84,10 @@ class Networker(object):
                 try:  # Add self.addr in query to identify self to peers
                     # If origin addr is not target peer addr
                     if origin != self.peers[peer]:
+                        redistribute = redistribute + 1
                         requests.post(
                             peer + '/forward/' + route + '?addr=' + origin +
-                            "&redistribute=" + str(redistribute + 1),
+                            "&redistribute=" + str(redistribute),
                             json=data_dict, timeout=config['timeout'])
 
                 except Exception as e:
@@ -120,9 +105,9 @@ class Networker(object):
         # Mutual add peers
         for peer in peerslist:
             if peer not in self.peers:
-                content = {"port": self.port, 'pubkey': clockchain.pubkey}
+                content = {"port": self.port, 'pubkey': credentials.pubkey}
                 signature = sign(standard_encode(content),
-                                 clockchain.privkey)
+                                 credentials.privkey)
                 content['signature'] = signature
                 try:
                     response = requests.post(
@@ -169,6 +154,6 @@ class Networker(object):
 
         logger.debug("Peers: " + str(self.peers))
 
-        # TODO: Sync latest chain with peers (choosing what the majority?)
+        # TODO: Sync latest datastructures with peers (choosing the majority?)
         logger.debug("Finished joining network")
         self.ready = True

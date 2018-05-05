@@ -3,8 +3,7 @@ import pytz
 import socket
 import random
 import hashlib
-from main import config
-from utils.loghandling import logger
+from utils.common import logger, config
 from datetime import datetime
 import traceback
 

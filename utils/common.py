@@ -1,7 +1,18 @@
-import os
 import logging
+import json
+import os.path
+from utils.pki import get_kp, pubkey_to_addr
 from logging.handlers import TimedRotatingFileHandler
-from main import config
+
+# Load config path
+this_file_path = os.path.dirname(os.path.realpath(__file__))
+
+# Load parent folder path
+dir_path = os.path.abspath(os.path.join(this_file_path, os.pardir))
+
+# Load config file
+with open(dir_path + '/config.json') as config_file:
+    config = json.load(config_file)
 
 # Set up logging
 logger = logging.getLogger('clocklog')
@@ -33,3 +44,21 @@ console = logging.StreamHandler()
 console.setLevel(logging.DEBUG)
 console.setFormatter(console_formatter)
 logger.addHandler(console)
+
+# Create empty credentials object that's importable
+# Done with a lambda function so that credentials.* can be assigned
+# TODO: Do this safer so a computers memory cant simply be scanned for privkey
+credentials = lambda: None
+
+# Use reward address as identifier for this node
+if config['generate_rand_addr']:
+    credentials.pubkey, credentials.privkey = get_kp()
+    logger.debug("Using random addr + privkey: " + credentials.privkey)
+else:
+    # Assumes priv.json exists containing fixed private key
+    # This file is in .gitignore so you don't publish your privkey..
+    with open(dir_path + '/utils/priv.json') as privkey_file:
+        credentials.privkey = json.load(privkey_file)
+    credentials.pubkey, _ = get_kp(privkey=credentials.privkey['priv'])
+
+credentials.addr = pubkey_to_addr(credentials.pubkey)

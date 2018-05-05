@@ -5,7 +5,7 @@ import jsonref
 from utils.pki import verify, pubkey_to_addr
 from jsonschema import validate
 from utils.helpers import hasher, handle_exception, standard_encode
-from utils.globals import config, dir_path, logger
+from utils.common import config, dir_path, logger
 
 
 def validate_schema(dictionary, schema_file):
@@ -88,15 +88,18 @@ def validate_tick(tick):
 
 def validate_ping(ping, pingpool, check_in_pool=True):
     if not validate_schema(ping, 'ping_schema.json'):
+        logger.debug("Failed ping schema validation")
         return False
 
     # Check addr already not in dict
     if check_in_pool:
         if pubkey_to_addr(ping['pubkey']) in pingpool:
+            logger.debug("Failed ping poolcheck validation")
             return False
 
     # Check hash and sig, keeping in mind signature might be popped off
     if not validate_sig_hash(ping):
+        logger.debug("Failed ping check sighash validation")
         return False
 
     # TODO: Sanity check timestamp?
