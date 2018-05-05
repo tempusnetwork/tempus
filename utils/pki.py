@@ -7,11 +7,6 @@ import base58
 # Assuming all input and output is hex (apart from get_kp where input is string)
 # Message is always bytes
 
-def get_identity(privkey):
-    pubkey, _ = get_kp(privkey)
-    addr = pubkey_to_addr(pubkey)
-    return addr, pubkey, privkey
-
 
 def get_kp(privkey=None):
     if not privkey:

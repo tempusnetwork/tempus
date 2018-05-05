@@ -4,14 +4,14 @@ from threads.networker import Networker
 from threads.timeminer import Timeminer
 from datastructures.clockchain import Clockchain
 
-clockchain = Clockchain()
-networker = Networker()
-
-timeminer = Timeminer(clockchain, networker)
-api = API(clockchain, networker)
-
 
 if __name__ == '__main__':
+    clockchain = Clockchain()
+    networker = Networker()
+
+    timeminer = Timeminer(clockchain, networker)
+    api = API(clockchain, networker)
+
     # Parse port as command line argument
     parser = ArgumentParser()
     parser.add_argument('-p', '--port', default=5000,
@@ -33,4 +33,4 @@ if __name__ == '__main__':
             port = port + 1
             pass
 
-    # Cannot add anything below here, as app.run blocks rest of execution
+    # Do not add anything below here, as app.run blocks rest of execution

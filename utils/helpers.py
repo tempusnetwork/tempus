@@ -6,6 +6,7 @@ import hashlib
 from utils.common import logger, config
 from datetime import datetime
 import traceback
+from statistics import median
 
 
 # Global methods
@@ -30,6 +31,11 @@ def standard_encode(dictionary):
 
 def hasher(dictionary):
     return hashlib.sha256(standard_encode(dictionary)).hexdigest()
+
+
+def median_ts(tick):
+    ts_list = [ping['timestamp'] for ping in tick['list']]
+    return median(ts_list)
 
 
 # TODO: Do this in C or other efficient lib..
