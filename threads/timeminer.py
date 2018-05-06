@@ -54,14 +54,18 @@ class Timeminer(object):
 
     def tick_worker(self):
         while True:
-            if self.networker.ready and self.added_ping and \
-                    len(list(self.clockchain.ping_pool.values())) > 0:
+            if self.networker.ready and self.added_ping:
 
                 # Adding a bit of margin for mining
                 # otherwise tick will be rejected
                 time.sleep(config['tick_period'] + config['tick_period_margin'])
 
                 logger.debug("Havent ticked this round! Starting to mine..")
+
+                if len(list(self.clockchain.ping_pool.values())) < 1:
+                    logger.debug("Tried mining empty ping_pool, "
+                                 "someone else probably found solution")
+                    continue
 
                 tick = {
                     'list': list(self.clockchain.ping_pool.values()),

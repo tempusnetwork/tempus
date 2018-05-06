@@ -30,10 +30,11 @@ def validate_schema(dictionary, schema_file):
 
 def validate_difficulty(hash):
     difficulty = config['difficulty']
-    if hash[-difficulty:] == "0" * difficulty:
-        return True
-    else:
+
+    if hash[-difficulty:] != "0" * difficulty:
         return False
+
+    return True
 
 
 def validate_tick_timediff(tick):
