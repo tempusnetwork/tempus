@@ -6,9 +6,11 @@ from datastructures.clockchain import Clockchain
 
 
 if __name__ == '__main__':
+    # The "pure" instances, one clockchain datastructure and one for messaging
     clockchain = Clockchain()
     networker = Networker()
 
+    # Timeminer handles all network validation, and API exposes messaging
     timeminer = Timeminer(clockchain, networker)
     api = API(clockchain, networker)
 

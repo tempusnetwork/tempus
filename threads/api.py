@@ -61,8 +61,7 @@ class API(object):
             if self.check_duplicate(ping):
                 return "duplicate request please wait 10s", 400
 
-            if not validate_ping(ping, self.clockchain.ping_pool,
-                                 check_in_pool=True):
+            if not validate_ping(ping, self.clockchain.ping_pool):
                 return "Invalid ping", 400
 
             # Add to pool

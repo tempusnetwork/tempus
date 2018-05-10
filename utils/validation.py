@@ -28,10 +28,10 @@ def validate_schema(dictionary, schema_file):
     return True
 
 
-def validate_difficulty(hash):
+def validate_difficulty(hash_to_check):
     difficulty = config['difficulty']
 
-    if hash[-difficulty:] != "0" * difficulty:
+    if hash_to_check[-difficulty:] != "0" * difficulty:
         return False
 
     return True
@@ -57,7 +57,7 @@ def validate_ping_timestamp(ping):
 
 def validate_sig_hash(item):
     # The reason this is a combined check on sig+hash (instead of split methods)
-    # Is that the check needs to be performed atomically
+    # Is that check must be atomic, as sig+hash mutate the tick in certain order
 
     # Deepcopy used to not modify instance we received
     item_copy = copy.deepcopy(item)
@@ -81,7 +81,7 @@ def validate_sig_hash(item):
             return False
     except ecdsa.BadSignatureError:
         # TODO : When new joiner joins, make sure peers relay latest hash
-        print("Bad signature!" + str(item_copy) + " " + str(signature))
+        logger.debug("Bad signature!" + str(item_copy) + " " + str(signature))
         return False
 
     return True
@@ -89,30 +89,33 @@ def validate_sig_hash(item):
 
 def validate_tick(tick):
     # Doing validation on a copy so that the original keeps its "this_tick" ref
-    # This is to keep track of the "name" of the tick as debug information
+    # Otherwise the tick dict will be modified by any operations done here
     tick_copy = copy.deepcopy(tick)
+
+    # This is used to keep track of the hash of the tick as debug information
+    # Popping it off as it is not supposed to be an actual part of a tick
     tick_copy.pop('this_tick', None)
 
     if not validate_schema(tick_copy, 'tick_schema.json'):
-        logger.debug("Failed tick schema validation")
+        logger.debug("Tick failed schema validation")
         return False
 
     # Check hash and sig keeping in mind signature might be popped off
     if not validate_sig_hash(tick_copy):
-        logger.debug("Failed tick signature and hash checking")
+        logger.debug("Tick failed signature and hash checking")
         return False
 
     if not validate_tick_timediff(tick_copy):
-        logger.debug("Failed tick minimum timediff")
+        logger.debug("Tick failed minimum timediff check")
         return False
 
     if not validate_min_tick_continuity(tick_copy):
-        logger.debug("Failed tick achieving minimum signature continuity")
+        logger.debug("Tick failed achieving minimum signature continuity")
         return False
 
     # Check all pings in list
     for ping in tick_copy['list']:
-        valid_ping = validate_ping(ping=ping, check_in_pool=False)
+        valid_ping = validate_ping(ping)
         if not valid_ping:
             logger.debug("tick invalid due to containing invalid ping")
             return False
@@ -120,15 +123,15 @@ def validate_tick(tick):
     return True
 
 
-def validate_ping(ping, pingpool=None, check_in_pool=True):
+def validate_ping(ping, pingpool=None):
     if not validate_schema(ping, 'ping_schema.json'):
-        logger.debug("Failed ping schema validation")
+        logger.debug("Ping failed schema validation")
         return False
 
     # Check addr already not in dict
-    if check_in_pool:
+    if pingpool is not None:
         if pubkey_to_addr(ping['pubkey']) in pingpool:
-            logger.debug("Failed ping poolcheck validation")
+            logger.debug("Ping failed poolcheck validation")
             return False
 
     # Check hash and sig, keeping in mind signature might be popped off
@@ -139,6 +142,7 @@ def validate_ping(ping, pingpool=None, check_in_pool=True):
     # TODO: Do sanity check on a pings timestamp in relation to current time etc
     if not validate_ping_timestamp(ping):  # <-- empty stub function atm..
         logger.debug("Failed sanity check on ping timestamp")
+        return False
 
     # TODO: Check if ping references diff hash
 

@@ -8,6 +8,7 @@ class Clockchain(object):
 
         self.chain = []
         self.ping_pool = {}
+        self.tick_pool = {}
 
         logger.debug("This node is " + credentials.addr)
 

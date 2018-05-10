@@ -20,13 +20,15 @@ class Timeminer(object):
     def ping_worker(self):
         while True:
             if self.networker.ready and not self.added_ping:
+                # Always construct ping in the following order:
+                # 1) Init 2) Mine+nonce 3) Add signature
+                # This is because nonce and signature order affect eachother
+
                 logger.debug("Havent pinged this round! Starting to mine..")
                 ping = {'pubkey': credentials.pubkey,
                         'timestamp': utcnow(),
                         'reference': self.clockchain.current_tick_ref()}
 
-                # Always do mining and put nonce after construction
-                # but before inserting signature
                 _, nonce = mine(ping)
                 ping['nonce'] = nonce
 
@@ -34,8 +36,7 @@ class Timeminer(object):
                 ping['signature'] = signature
 
                 # Validate own ping
-                if not validate_ping(ping, self.clockchain.ping_pool,
-                                     check_in_pool=True):
+                if not validate_ping(ping, self.clockchain.ping_pool):
                     logger.debug("Failed own ping validation")
                     continue  # Skip to next iteration of while loop
 
@@ -55,9 +56,12 @@ class Timeminer(object):
     def tick_worker(self):
         while True:
             if self.networker.ready and self.added_ping:
+                # Always construct tick in the following order:
+                # 1) Init 2) Mine+nonce 3) Add signature
+                # This is because nonce and signature order affect eachother
 
-                # Adding a bit of margin for mining
-                # otherwise tick will be rejected
+                # Adding a bit of margin for mining, otherwise tick rejected
+                # TODO: Adjust margin based on max possible mining time? 
                 time.sleep(config['tick_period'] + config['tick_period_margin'])
 
                 logger.debug("Havent ticked this round! Starting to mine..")
@@ -73,8 +77,6 @@ class Timeminer(object):
                     'prev_tick': self.clockchain.current_tick_ref()
                 }
 
-                # Always do mining and put nonce after construction
-                # but before inserting signature
                 this_tick, nonce = mine(tick)
                 tick['nonce'] = nonce
 
