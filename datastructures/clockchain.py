@@ -23,7 +23,7 @@ class Clockchain(object):
         # Removing signature and this_tick in order to return correct hash
         last_block_copy.pop('signature', None)
         last_block_copy.pop('this_tick', None)
-        
+
         return hasher(last_block_copy)
 
     def restart_tick(self):
