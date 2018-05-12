@@ -22,7 +22,7 @@ class Timeminer(object):
             if self.networker.ready and not self.added_ping:
                 # Always construct ping in the following order:
                 # 1) Init 2) Mine+nonce 3) Add signature
-                # This is because nonce and signature order affect eachother
+                # This is because the order of nonce and sig creation matters
 
                 logger.debug("Havent pinged this round! Starting to mine..")
                 ping = {'pubkey': credentials.pubkey,
@@ -58,10 +58,10 @@ class Timeminer(object):
             if self.networker.ready and self.added_ping:
                 # Always construct tick in the following order:
                 # 1) Init 2) Mine+nonce 3) Add signature
-                # This is because nonce and signature order affect eachother
+                # This is because the order of nonce and sig creation matters
 
                 # Adding a bit of margin for mining, otherwise tick rejected
-                # TODO: Adjust margin based on max possible mining time? 
+                # TODO: Adjust margin based on max possible mining time?
                 time.sleep(config['tick_period'] + config['tick_period_margin'])
 
                 logger.debug("Havent ticked this round! Starting to mine..")
@@ -84,15 +84,18 @@ class Timeminer(object):
                 tick['signature'] = signature
 
                 # This is to keep track of the "name" of the tick as debug info
+                # this_tick is not actually necessary according to tick schema
                 tick['this_tick'] = this_tick
 
                 # Validate own tick
                 if not validate_tick(tick):
                     logger.debug("Failed own tick validation")
+                    # TODO: Change self.added_ping to false here?
                     continue  # Skip to next iteration of while loop
 
                 # Add to own chain and restart ping collecting
-                self.clockchain.chain.append(tick)
+
+                self.clockchain.add_tick(tick)
                 self.clockchain.restart_tick()
 
                 # Forward to peers (this must be after all validation)

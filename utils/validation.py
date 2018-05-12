@@ -47,10 +47,6 @@ def validate_tick_timediff(tick):
     return True
 
 
-def validate_min_tick_continuity(tick):
-    return True
-
-
 def validate_ping_timestamp(ping):
     return True
 
@@ -105,12 +101,9 @@ def validate_tick(tick):
         logger.debug("Tick failed signature and hash checking")
         return False
 
+    # TODO: This forces lower bound, but should we also include upper bound?
     if not validate_tick_timediff(tick_copy):
         logger.debug("Tick failed minimum timediff check")
-        return False
-
-    if not validate_min_tick_continuity(tick_copy):
-        logger.debug("Tick failed achieving minimum signature continuity")
         return False
 
     # Check all pings in list
@@ -136,14 +129,12 @@ def validate_ping(ping, pingpool=None):
 
     # Check hash and sig, keeping in mind signature might be popped off
     if not validate_sig_hash(ping):
-        logger.debug("Failed ping check sighash validation")
+        logger.debug("Ping failed sighash validation")
         return False
 
     # TODO: Do sanity check on a pings timestamp in relation to current time etc
     if not validate_ping_timestamp(ping):  # <-- empty stub function atm..
-        logger.debug("Failed sanity check on ping timestamp")
+        logger.debug("Ping failed sanity check on timestamp")
         return False
-
-    # TODO: Check if ping references diff hash
 
     return True

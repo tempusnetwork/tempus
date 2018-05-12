@@ -13,5 +13,5 @@
     "tick_period": 20,
     "tick_period_margin": 2,
     "tick_reissue_margin": 5,
-    "min_tick_continuity": 0.9
+    "chain_max_length": 20
 }

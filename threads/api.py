@@ -41,7 +41,7 @@ class API(object):
             if not validate_tick(tick):
                 return "Invalid tick", 400
 
-            self.clockchain.chain.append(tick)
+            self.clockchain.add_tick(tick)
             self.clockchain.restart_tick()
 
             # TODO: Sanitize this input..

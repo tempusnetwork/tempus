@@ -5,18 +5,14 @@ import copy
 
 class Clockchain(object):
     def __init__(self):
-
         self.chain = []
         self.ping_pool = {}
-        self.tick_pool = {}
 
         logger.debug("This node is " + credentials.addr)
 
-        # TODO: Figure out how to decide common genesis tick if diff starthash
-        # TODO: Re-adapt this to use signatures
-        genesis_addr = "tempigFUe1uuRsAQ7WWNpb5r97pDCJ3wp9"
-        self.chain.append(
-            {'addr': genesis_addr, 'nonce': 27033568337, 'list': []})
+        # TODO: Create valid genesis tick
+        genesis_tick = {"not_yet_implemented": True}
+        self.chain.add_tick(genesis_tick)
 
     def current_tick_ref(self):
         last_block_copy = copy.deepcopy(self.chain[-1])
@@ -29,3 +25,10 @@ class Clockchain(object):
 
     def restart_tick(self):
         self.ping_pool = {}
+
+    def active_chain(self):
+        # TODO: Return chain with longest cumulative continuity?
+        return self.chain
+
+    def add_tick(self, tick):
+        return tick
