@@ -101,6 +101,10 @@ def validate_tick(tick):
         logger.debug("Tick failed signature and hash checking")
         return False
 
+    # TODO: Validate tick height
+
+    # TODO: Validate tick references existing prev_tick
+
     # TODO: This forces lower bound, but should we also include upper bound?
     if not validate_tick_timediff(tick_copy):
         logger.debug("Tick failed minimum timediff check")

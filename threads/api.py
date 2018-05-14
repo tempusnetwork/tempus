@@ -20,8 +20,7 @@ class API(object):
             max_age_seconds=config['expiring_dict_max_age'])
 
     def check_duplicate(self, values):
-        # Check if dict values has been received in the past x seconds
-        # already..
+        # Check if dict values has been received in the past x seconds already
         if self.duplicate_cache.get(hasher(values)):
             return True
         else:
@@ -41,8 +40,7 @@ class API(object):
             if not validate_tick(tick):
                 return "Invalid tick", 400
 
-            self.clockchain.add_tick(tick)
-            self.clockchain.restart_tick()
+            self.clockchain.add_to_tick_pool(tick)
 
             # TODO: Sanitize this input..
             redistribute = int(request.args.get('redistribute'))
@@ -69,7 +67,7 @@ class API(object):
             self.clockchain.ping_pool[addr_to_add] = ping
 
             # TODO: Why would anyone forward others pings? Only incentivized
-            # to forward own pings (to get highest uptime)
+            # TODO: to forward own pings (to get highest uptime)
             # TODO: Solved if you remove peers that do not forward your ping
 
             redistribute = int(request.args.get('redistribute'))
@@ -142,8 +140,7 @@ class API(object):
         @app.route('/info/clockchain', methods=['GET'])
         def info_clockchain():
             response = {
-                'chain': self.clockchain.chain,
-                'length': len(self.clockchain.chain),
+                'chain': self.clockchain.chain
             }
             return jsonify(response), 200
 

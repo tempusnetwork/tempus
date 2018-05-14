@@ -60,6 +60,8 @@ class Timeminer(object):
                 # 1) Init 2) Mine+nonce 3) Add signature
                 # This is because the order of nonce and sig creation matters
 
+                self.clockchain.restart_cycle()
+
                 # Adding a bit of margin for mining, otherwise tick rejected
                 # TODO: Adjust margin based on max possible mining time?
                 time.sleep(config['tick_period'] + config['tick_period_margin'])
@@ -71,13 +73,23 @@ class Timeminer(object):
                                  "someone else probably found solution")
                     continue
 
+                # Here we already have active tick, so no point in sending own
+                if self.clockchain.active_tick:
+                    continue
+
                 tick = {
                     'list': list(self.clockchain.ping_pool.values()),
                     'pubkey': credentials.pubkey,
-                    'prev_tick': self.clockchain.current_tick_ref()
+                    'prev_tick': self.clockchain.current_tick_ref(),
+                    'height': self.clockchain.active_tick['height'] + 1
                 }
 
                 this_tick, nonce = mine(tick)
+
+                # Here we already have active tick, so no point in sending own
+                if self.clockchain.active_tick:
+                    continue
+
                 tick['nonce'] = nonce
 
                 signature = sign(standard_encode(tick), credentials.privkey)
@@ -93,10 +105,11 @@ class Timeminer(object):
                     # TODO: Change self.added_ping to false here?
                     continue  # Skip to next iteration of while loop
 
-                # Add to own chain and restart ping collecting
+                # Here we already have active tick, so no point in sending own
+                if self.clockchain.active_tick:
+                    continue
 
-                self.clockchain.add_tick(tick)
-                self.clockchain.restart_tick()
+                self.clockchain.add_to_tick_pool(tick)
 
                 # Forward to peers (this must be after all validation)
                 self.networker.forward(data_dict=tick, route='tick',
@@ -104,6 +117,14 @@ class Timeminer(object):
                                        redistribute=0)
 
                 logger.debug("Forwarded own tick: " + str(tick))
+
+                # TODO: For all todos below, make sure properly reflected in API
+
+                # TODO: tick_reissue_margin period, at the end reissue ping for
+                # TODO: Highest tick continuity tick.
+
+                # TODO: After 2x tick_reissue_margin, do prune() + consolidate()
+
                 self.added_ping = False
             else:
                 time.sleep(1)

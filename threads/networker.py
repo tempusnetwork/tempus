@@ -2,10 +2,9 @@ import json
 import time
 import random
 import requests
-import threading
 
 from utils.pki import sign
-from threading import Timer
+from threading import Timer, Thread
 from urllib.parse import urlparse
 
 from utils.common import logger, config, credentials
@@ -18,8 +17,7 @@ class Networker(object):
         self.peers = {}
         self.port = 0
         self.ready = False
-        self.join_network_thread = threading.Thread(target=
-                                                    self.join_network_worker)
+        self.join_network_thread = Thread(target=self.join_network_worker)
         # Timer for activation thread (uses resettable timer to find out port)
         self.t = Timer(config['port_timer_timeout'], self.activate)
 

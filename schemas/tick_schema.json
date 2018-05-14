@@ -15,12 +15,12 @@
 		"prev_tick": {
 			"type": "string"
 		},
-		"seq": {
+		"height": {
 			"type": "integer"
 		},
 		"signature": {
 			"type": "string"
 		}
 	},
-	"required": ["pubkey", "nonce", "list", "prev_tick", "seq", "signature"]
+	"required": ["pubkey", "nonce", "list", "prev_tick", "height", "signature"]
 }
