@@ -38,12 +38,14 @@ def median_ts(tick):
     return median(ts_list)
 
 
-def cumulative_continuity(chain):
+def measure_tick_continuity(tick, chain):
+    extended_chain = chain + [tick]
+
     continuity_dict = {}
     tot_sum = 0
     # TODO: Do running calculation in clockchain instead
     # TODO: so we dont recalculate this every time?
-    for tick in chain:
+    for tick in extended_chain:
         for ping in tick['list']:
             if ping["pubkey"] in continuity_dict:
                 continuity_dict[ping["pubkey"]] += 1
@@ -53,7 +55,7 @@ def cumulative_continuity(chain):
     for pubkey in continuity_dict:
         tot_sum += continuity_dict[pubkey]
 
-    return tot_sum / len(chain)
+    return tot_sum / len(extended_chain)
 
 
 # TODO: Do this in C or other efficient lib..

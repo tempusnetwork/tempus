@@ -83,7 +83,7 @@ def validate_sig_hash(item):
     return True
 
 
-def validate_tick(tick):
+def validate_tick(tick, active_tick=None, possible_previous_ticks=None):
     # Doing validation on a copy so that the original keeps its "this_tick" ref
     # Otherwise the tick dict will be modified by any operations done here
     tick_copy = copy.deepcopy(tick)
@@ -101,11 +101,17 @@ def validate_tick(tick):
         logger.debug("Tick failed signature and hash checking")
         return False
 
-    # TODO: Validate tick height
+    if active_tick is not None:
+        if tick_copy['height'] != active_tick['height'] + 1:
+            logger.debug("Tick failed height check")
+            return False
 
-    # TODO: Validate tick references existing prev_tick
+    if possible_previous_ticks is not None:
+        if not tick_copy['prev_tick'] in possible_previous_ticks:
+            logger.debug("Tick failed referencing previous possible ticks")
+            return False
 
-    # TODO: This forces lower bound, but should we also include upper bound?
+    # TODO: This forces lower bound, but should also include upper bound?
     if not validate_tick_timediff(tick_copy):
         logger.debug("Tick failed minimum timediff check")
         return False

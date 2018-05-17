@@ -37,7 +37,8 @@ class API(object):
             if self.check_duplicate(tick):
                 return "duplicate request please wait 10s", 400
 
-            if not validate_tick(tick):
+            if not validate_tick(tick, self.clockchain.active_tick,
+                                 self.clockchain.possible_previous_ticks()):
                 return "Invalid tick", 400
 
             self.clockchain.add_to_tick_pool(tick)
@@ -51,6 +52,9 @@ class API(object):
                                        origin=origin,
                                        redistribute=redistribute)
 
+            # TODO: Fix according to reissue stuff from timeminer,
+            # TODO: block receiving new ticks etc
+
             return "Added tick", 201
 
         @app.route('/forward/ping', methods=['POST'])
@@ -63,8 +67,7 @@ class API(object):
                 return "Invalid ping", 400
 
             # Add to pool
-            addr_to_add = pubkey_to_addr(ping['pubkey'])
-            self.clockchain.ping_pool[addr_to_add] = ping
+            self.clockchain.add_to_ping_pool(ping)
 
             # TODO: Why would anyone forward others pings? Only incentivized
             # TODO: to forward own pings (to get highest uptime)

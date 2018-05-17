@@ -17,6 +17,34 @@ class Timeminer(object):
         self.ping_thread.start()
         self.tick_thread.start()
 
+    def generate_and_process_ping(self, reference):
+        ping = {'pubkey': credentials.pubkey,
+                'timestamp': utcnow(),
+                'reference': reference}
+
+        _, nonce = mine(ping)
+        ping['nonce'] = nonce
+
+        signature = sign(standard_encode(ping), credentials.privkey)
+        ping['signature'] = signature
+
+        # Validate own ping
+        if not validate_ping(ping, self.clockchain.ping_pool):
+            logger.debug("Failed own ping validation")
+            return False
+
+        # Add to pool
+        self.clockchain.add_to_ping_pool(ping)
+
+        # Forward to peers (this must be after all validation)
+        self.networker.forward(data_dict=ping, route='ping',
+                               origin=credentials.addr,
+                               redistribute=0)
+
+        logger.debug("Forwarded own ping: " + str(ping))
+
+        return True
+
     def ping_worker(self):
         while True:
             if self.networker.ready and not self.added_ping:
@@ -25,31 +53,14 @@ class Timeminer(object):
                 # This is because the order of nonce and sig creation matters
 
                 logger.debug("Havent pinged this round! Starting to mine..")
-                ping = {'pubkey': credentials.pubkey,
-                        'timestamp': utcnow(),
-                        'reference': self.clockchain.current_tick_ref()}
+                successful = \
+                    self.generate_and_process_ping(
+                        self.clockchain.current_tick_ref())
 
-                _, nonce = mine(ping)
-                ping['nonce'] = nonce
+                if not successful:
+                    continue
 
-                signature = sign(standard_encode(ping), credentials.privkey)
-                ping['signature'] = signature
-
-                # Validate own ping
-                if not validate_ping(ping, self.clockchain.ping_pool):
-                    logger.debug("Failed own ping validation")
-                    continue  # Skip to next iteration of while loop
-
-                # Add to pool
-                self.clockchain.ping_pool[credentials.addr] = ping
                 self.added_ping = True
-
-                # Forward to peers (this must be after all validation)
-                self.networker.forward(data_dict=ping, route='ping',
-                                       origin=credentials.addr,
-                                       redistribute=0)
-
-                logger.debug("Forwarded own ping: " + str(ping))
             else:
                 time.sleep(1)
 
@@ -59,8 +70,6 @@ class Timeminer(object):
                 # Always construct tick in the following order:
                 # 1) Init 2) Mine+nonce 3) Add signature
                 # This is because the order of nonce and sig creation matters
-
-                self.clockchain.restart_cycle()
 
                 # Adding a bit of margin for mining, otherwise tick rejected
                 # TODO: Adjust margin based on max possible mining time?
@@ -100,7 +109,8 @@ class Timeminer(object):
                 tick['this_tick'] = this_tick
 
                 # Validate own tick
-                if not validate_tick(tick):
+                if not validate_tick(tick, self.clockchain.active_tick,
+                                     self.clockchain.possible_previous_ticks()):
                     logger.debug("Failed own tick validation")
                     # TODO: Change self.added_ping to false here?
                     continue  # Skip to next iteration of while loop
@@ -118,12 +128,15 @@ class Timeminer(object):
 
                 logger.debug("Forwarded own tick: " + str(tick))
 
-                # TODO: For all todos below, make sure properly reflected in API
+                # TODO: For all below, make sure properly reflected in API
 
-                # TODO: tick_reissue_margin period, at the end reissue ping for
-                # TODO: Highest tick continuity tick.
+                time.sleep(config['tick_reissue_margin'])
 
-                # TODO: After 2x tick_reissue_margin, do prune() + consolidate()
+                self.generate_and_process_ping(
+                    self.clockchain.current_highest_tick_ref())
+
+                time.sleep(config['tick_reissue_margin'])
+                self.clockchain.consolidate_ticks_to_chain()
 
                 self.added_ping = False
             else:
