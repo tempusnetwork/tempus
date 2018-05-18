@@ -156,6 +156,8 @@ class Timeminer(object):
                 logger.debug("Reissue tick stage------------------------------")
                 self.networker.stage = 3
 
+                # TODO: Fix timediff bug +
+                # TODO: only do reissue if my own tick got highest vote
                 self.generate_and_process_tick(reissue=True)
 
                 time.sleep(config['tick_step_time'])
