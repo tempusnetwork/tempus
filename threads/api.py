@@ -32,7 +32,7 @@ class API(object):
 
         @app.route('/forward/tick', methods=['POST'])
         def forward_tick():
-            if self.networker.block_ticks:
+            if self.networker.stage == 4:
                 return "not accepting further ticks", 400
 
             tick = request.get_json()
@@ -55,9 +55,6 @@ class API(object):
                                        origin=origin,
                                        redistribute=redistribute)
 
-            # TODO: Fix according to reissue stuff from timeminer,
-            # TODO: block receiving new ticks etc
-
             return "Added tick", 201
 
         @app.route('/forward/ping', methods=['POST'])
@@ -66,7 +63,13 @@ class API(object):
             if self.check_duplicate(ping):
                 return "duplicate request please wait 10s", 400
 
-            if not validate_ping(ping, self.clockchain.ping_pool):
+            # If we are in "reissue ping" stage, overwrite ping in ping pool
+            if self.networker.stage == 2:
+                pool_to_check = None
+            else:
+                pool_to_check = self.clockchain.ping_pool
+
+            if not validate_ping(ping, pool_to_check):
                 return "Invalid ping", 400
 
             # Add to pool

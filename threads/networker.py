@@ -17,7 +17,7 @@ class Networker(object):
         self.peers = {}
         self.port = 0
         self.ready = False
-        self.block_ticks = False
+        self.stage = 1
         self.join_network_thread = Thread(target=self.join_network_worker)
         # Timer for activation thread (uses resettable timer to find out port)
         self.t = Timer(config['port_timer_timeout'], self.activate)
@@ -140,7 +140,8 @@ class Networker(object):
         # Sleeping random amount to not have seed-clash (cannot do circular
         #  adding of peers at the exact same time as seeds)
         sleeptime = 2 + random.randrange(3000) / 1000.0
-        logger.debug("Sleeping for " + str(sleeptime) + "s before network join")
+        logger.debug("Sleeping for " + str(int(sleeptime))
+                     + "s before network join")
         time.sleep(sleeptime)
 
         # First add seeds, and get the seeds peers

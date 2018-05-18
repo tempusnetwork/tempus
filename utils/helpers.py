@@ -38,15 +38,26 @@ def median_ts(tick):
     return median(ts_list)
 
 
-def measure_tick_continuity(tick, chain):
-    extended_chain = chain + [tick]  # the [listification] appends tick at end
+def measure_tick_continuity(tick_dict, chain):
+    extended_chain = chain + [tick_dict]  # the [] appends tick_dict at end
 
     continuity_dict = {}
     tot_sum = 0
     # TODO: Do running calculation in clockchain instead
     # TODO: so we dont recalculate this every time?
-    for tick in extended_chain:
-        for ping in tick['list']:
+
+    # Traverse our tree backwards
+    for idx, possible_ticks in enumerate(reversed(extended_chain)):
+        if idx == 0:
+            logger.debug(possible_ticks)
+            tick_itself = list(possible_ticks.values())[0]
+            chosen_tick = tick_itself
+            prev_ref = tick_itself['prev_tick']
+        else:
+            chosen_tick = possible_ticks[prev_ref]
+            prev_ref = chosen_tick['prev_tick']
+
+        for ping in chosen_tick['list']:
             if ping["pubkey"] in continuity_dict:
                 continuity_dict[ping["pubkey"]] += 1
             else:

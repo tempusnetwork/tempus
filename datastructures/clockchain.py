@@ -1,4 +1,4 @@
-from utils.helpers import hasher, measure_tick_continuity
+from utils.helpers import hasher, measure_tick_continuity, mine
 from utils.common import logger, credentials, config
 from utils.pki import pubkey_to_addr
 from queue import Queue, PriorityQueue
@@ -15,15 +15,19 @@ class Clockchain(object):
         logger.debug("This node is " + credentials.addr)
 
         # TODO: Create valid genesis tick
-        self.active_tick = {
+        tick = {
             'pubkey': 'pubkey',
-            'nonce': 0,
+            'nonce': 68696043434,
             'list': [],
             'prev_tick': 'prev_tick',
             'height': 0,
-            'signature': 'signature'
+            'this_tick': '5ecb6e893a9350bed889b88a1fd04e58'
+                         'e6d173a7592586547f8a658c2a160000'
         }
-        self.add_to_tick_pool(self.active_tick)
+
+        self.active_tick = tick
+        genesis_dict = self.dictify(self.active_tick)
+        self.chain.put(genesis_dict)
 
     def current_tick_ref(self):
         last_block_copy = copy.deepcopy(self.active_tick)
@@ -33,6 +37,19 @@ class Clockchain(object):
         last_block_copy.pop('this_tick', None)
 
         return hasher(last_block_copy)
+
+    def dictify(self, tick):
+        dictified = {}
+
+        tick_copy = copy.deepcopy(tick)
+        tick_ref = tick_copy.pop('this_tick', None)
+        if tick_ref is not None:
+            dictified[tick_ref] = tick_copy
+        else:
+            # TODO: Create the ref from scratch if it wasn't found in dict
+            pass
+
+        return dictified
 
     def current_height(self):
         return self.active_tick['height']
@@ -67,7 +84,8 @@ class Clockchain(object):
         if not self.tick_already_chosen():
             self.active_tick = tick_copy
 
-        tick_continuity = measure_tick_continuity(tick_copy, self.chainlist())
+        tick_continuity = measure_tick_continuity(self.dictify(tick_copy)
+                                                  , self.chainlist())
 
         # Putting minus sign on the continuity measurement since PriorityQueue
         # Returns the *lowest* valued item first, while we want *highest*
@@ -79,36 +97,29 @@ class Clockchain(object):
 
     def consolidate_ticks_to_chain(self):
         # Get highest cumulative continuity tick
-        tick_dict = {}
+        highest_score, highest_tick = self.tick_pool.get()
 
-        highest_score, highest_tick = self.tick_pool.get_nowait()
+        tick_dict = self.dictify(highest_tick)
 
-        highest_tick_copy = copy.deepcopy(highest_tick)
-
-        highest_tick_ref = highest_tick_copy.pop('this_tick', None)
-        if highest_tick_ref is not None:
-            tick_dict[highest_tick_ref] = highest_tick_copy
-        else:
-            # TODO: Create the ref from scratch if it wasn't found in dict
-            pass
-
-        # Add all ticks with same continuity values to the dictionary ----
+        # ---- Add all ticks with same continuity values to the dictionary ----
         # WARNING: This MUST happen less than 50% of the time and result in
         # usually only 1 winner, so that chain only branches occasionally
         # and thus doesn't become an exponentially growing tree.
         # This is the main condition to achieve network-wide consensus
-        next_highest_score, next_highest_tick = self.tick_pool.get_nowait()
-        while highest_score == next_highest_score:
-            next_copy = copy.deepcopy(next_highest_tick)
-            next_tick_ref = next_copy.pop('this_tick', None)
-            if next_tick_ref is not None:
-                tick_dict[next_tick_ref] = next_copy
+        if not self.tick_pool.empty():
+            next_highest_score, next_highest_tick = self.tick_pool.get()
+        else:
+            next_highest_score, next_highest_tick = (float('nan'), {})
 
-            next_highest_score, next_highest_tick = self.tick_pool.get_nowait()
+        while highest_score == next_highest_score and not self.tick_pool.empty():
+            dict_to_add = self.dictify(next_highest_tick)
+            tick_dict = {**tick_dict, **dict_to_add}  # Merging dictionaries
+
+            next_highest_score, next_highest_tick = self.tick_pool.get()
 
         if self.chain.full():
             # This removes earliest item from queue
-            self.chain.get_nowait()
+            self.chain.get()
 
         self.chain.put(tick_dict)
         self.restart_cycle()

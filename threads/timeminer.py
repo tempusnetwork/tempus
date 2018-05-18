@@ -17,7 +17,7 @@ class Timeminer(object):
         self.ping_thread.start()
         self.tick_thread.start()
 
-    def generate_and_process_ping(self, reference):
+    def generate_and_process_ping(self, reference, reissue=False):
         # Always construct ping in the following order:
         # 1) Init 2) Mine+nonce 3) Add signature
         # This is because the order of nonce and sig creation matters
@@ -32,7 +32,11 @@ class Timeminer(object):
         ping['signature'] = signature
 
         # Validate own ping
-        if not validate_ping(ping, self.clockchain.ping_pool):
+        if reissue:
+            pool_to_validate = None
+        else:
+            pool_to_validate = self.clockchain.ping_pool
+        if not validate_ping(ping, pool_to_validate):
             logger.debug("Failed own ping validation")
             return False
 
@@ -49,16 +53,24 @@ class Timeminer(object):
         return True
 
     def generate_and_process_tick(self, reissue=False):
+        # Here we already have active tick, so no point in sending own
+        if self.clockchain.tick_already_chosen() and not reissue:
+            logger.debug("Already chosen at tick start")
+            return False
+
+        height = self.clockchain.current_height() + 1
+
         tick = {
             'list': list(self.clockchain.ping_pool.values()),
             'pubkey': credentials.pubkey,
             'prev_tick': self.clockchain.current_tick_ref(),
-            'height': self.clockchain.active_tick['height']
+            'height': height
         }
 
         this_tick, nonce = mine(tick)
 
         if self.clockchain.tick_already_chosen() and not reissue:
+            logger.debug("Already chosen after mining")
             return False
 
         tick['nonce'] = nonce
@@ -82,6 +94,7 @@ class Timeminer(object):
             return False
 
         if self.clockchain.tick_already_chosen() and not reissue:
+            logger.debug("Already chosen after validation")
             return False
 
         self.clockchain.add_to_tick_pool(tick)
@@ -125,28 +138,30 @@ class Timeminer(object):
 
                 logger.debug("Haven't ticked this round! Starting to mine..")
 
-                self.networker.block_ticks = False
+                self.networker.stage = 1
 
-                # Here we already have active tick, so no point in sending own
-                if self.clockchain.tick_already_chosen():
-                    continue
-
-                if not self.generate_and_process_tick():
+                success = self.generate_and_process_tick()
+                if not success:
                     continue
 
                 time.sleep(config['tick_step_time'])
 
+                logger.debug("Reissue ping stage------------------------------")
+                self.networker.stage = 2
                 # Reissue a ping for highest continuity tick in tick_pool
                 self.generate_and_process_ping(
-                    self.clockchain.current_highest_tick_ref())
+                    self.clockchain.current_highest_tick_ref(), reissue=True)
 
                 time.sleep(config['tick_step_time'])
+                logger.debug("Reissue tick stage------------------------------")
+                self.networker.stage = 3
 
                 self.generate_and_process_tick(reissue=True)
 
                 time.sleep(config['tick_step_time'])
 
-                self.networker.block_ticks = True
+                logger.debug("Consolidate ticks stage-------------------------")
+                self.networker.stage = 4
 
                 self.clockchain.consolidate_ticks_to_chain()
 
