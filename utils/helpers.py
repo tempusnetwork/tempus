@@ -39,7 +39,7 @@ def median_ts(tick):
 
 
 def measure_tick_continuity(tick, chain):
-    extended_chain = chain + [tick]
+    extended_chain = chain + [tick]  # the [listification] appends tick at end
 
     continuity_dict = {}
     tot_sum = 0
@@ -52,6 +52,7 @@ def measure_tick_continuity(tick, chain):
             else:
                 continuity_dict[ping["pubkey"]] = 1
 
+    # TODO: Is this not gameable by having tons of pubkeys/ticks/pings?
     for pubkey in continuity_dict:
         tot_sum += continuity_dict[pubkey]
 

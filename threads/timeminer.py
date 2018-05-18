@@ -18,6 +18,9 @@ class Timeminer(object):
         self.tick_thread.start()
 
     def generate_and_process_ping(self, reference):
+        # Always construct ping in the following order:
+        # 1) Init 2) Mine+nonce 3) Add signature
+        # This is because the order of nonce and sig creation matters
         ping = {'pubkey': credentials.pubkey,
                 'timestamp': utcnow(),
                 'reference': reference}
@@ -45,14 +48,58 @@ class Timeminer(object):
 
         return True
 
+    def generate_and_process_tick(self, reissue=False):
+        tick = {
+            'list': list(self.clockchain.ping_pool.values()),
+            'pubkey': credentials.pubkey,
+            'prev_tick': self.clockchain.current_tick_ref(),
+            'height': self.clockchain.active_tick['height']
+        }
+
+        this_tick, nonce = mine(tick)
+
+        if self.clockchain.tick_already_chosen() and not reissue:
+            return False
+
+        tick['nonce'] = nonce
+
+        signature = sign(standard_encode(tick), credentials.privkey)
+        tick['signature'] = signature
+
+        # This is to keep track of the "name" of the tick as debug info
+        # this_tick is not actually necessary according to tick schema
+        tick['this_tick'] = this_tick
+
+        # Validate own tick
+        active_tick = self.clockchain.active_tick
+        possible_previous = self.clockchain.possible_previous_ticks()
+        if reissue:
+            active_tick = None
+            possible_previous = None
+
+        if not validate_tick(tick, active_tick, possible_previous):
+            logger.debug("Failed own tick validation")
+            return False
+
+        if self.clockchain.tick_already_chosen() and not reissue:
+            return False
+
+        self.clockchain.add_to_tick_pool(tick)
+
+        # Forward to peers (this must be after all validation)
+        self.networker.forward(data_dict=tick, route='tick',
+                               origin=credentials.addr,
+                               redistribute=0)
+
+        logger.debug("Forwarded own tick: " + str(tick))
+
+        return True
+
     def ping_worker(self):
         while True:
             if self.networker.ready and not self.added_ping:
-                # Always construct ping in the following order:
-                # 1) Init 2) Mine+nonce 3) Add signature
-                # This is because the order of nonce and sig creation matters
 
-                logger.debug("Havent pinged this round! Starting to mine..")
+                logger.debug("Haven't pinged this round! Starting to mine..")
                 successful = \
                     self.generate_and_process_ping(
                         self.clockchain.current_tick_ref())
@@ -66,76 +113,41 @@ class Timeminer(object):
 
     def tick_worker(self):
         while True:
+            # added_ping acts as a switch between "pingmode" and "tickmode"
             if self.networker.ready and self.added_ping:
                 # Always construct tick in the following order:
                 # 1) Init 2) Mine+nonce 3) Add signature
                 # This is because the order of nonce and sig creation matters
 
                 # Adding a bit of margin for mining, otherwise tick rejected
-                # TODO: Adjust margin based on max possible mining time?
                 time.sleep(config['tick_period'] + config['tick_period_margin'])
+                # TODO: Adjust margin based on max possible mining time?
 
-                logger.debug("Havent ticked this round! Starting to mine..")
+                logger.debug("Haven't ticked this round! Starting to mine..")
 
-                if len(list(self.clockchain.ping_pool.values())) < 1:
-                    logger.debug("Tried mining empty ping_pool, "
-                                 "someone else probably found solution")
-                    continue
+                self.networker.block_ticks = False
 
                 # Here we already have active tick, so no point in sending own
-                if self.clockchain.active_tick:
+                if self.clockchain.tick_already_chosen():
                     continue
 
-                tick = {
-                    'list': list(self.clockchain.ping_pool.values()),
-                    'pubkey': credentials.pubkey,
-                    'prev_tick': self.clockchain.current_tick_ref(),
-                    'height': self.clockchain.active_tick['height'] + 1
-                }
-
-                this_tick, nonce = mine(tick)
-
-                # Here we already have active tick, so no point in sending own
-                if self.clockchain.active_tick:
+                if not self.generate_and_process_tick():
                     continue
 
-                tick['nonce'] = nonce
+                time.sleep(config['tick_step_time'])
 
-                signature = sign(standard_encode(tick), credentials.privkey)
-                tick['signature'] = signature
-
-                # This is to keep track of the "name" of the tick as debug info
-                # this_tick is not actually necessary according to tick schema
-                tick['this_tick'] = this_tick
-
-                # Validate own tick
-                if not validate_tick(tick, self.clockchain.active_tick,
-                                     self.clockchain.possible_previous_ticks()):
-                    logger.debug("Failed own tick validation")
-                    # TODO: Change self.added_ping to false here?
-                    continue  # Skip to next iteration of while loop
-
-                # Here we already have active tick, so no point in sending own
-                if self.clockchain.active_tick:
-                    continue
-
-                self.clockchain.add_to_tick_pool(tick)
-
-                # Forward to peers (this must be after all validation)
-                self.networker.forward(data_dict=tick, route='tick',
-                                       origin=credentials.addr,
-                                       redistribute=0)
-
-                logger.debug("Forwarded own tick: " + str(tick))
-
-                # TODO: For all below, make sure properly reflected in API
-
-                time.sleep(config['tick_reissue_margin'])
-
+                # Reissue a ping for highest continuity tick in tick_pool
                 self.generate_and_process_ping(
                     self.clockchain.current_highest_tick_ref())
 
-                time.sleep(config['tick_reissue_margin'])
+                time.sleep(config['tick_step_time'])
+
+                self.generate_and_process_tick(reissue=True)
+
+                time.sleep(config['tick_step_time'])
+
+                self.networker.block_ticks = True
+
                 self.clockchain.consolidate_ticks_to_chain()
 
                 self.added_ping = False

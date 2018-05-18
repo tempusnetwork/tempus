@@ -38,14 +38,23 @@ class Clockchain(object):
         return self.active_tick['height']
 
     def possible_previous_ticks(self):
-        return self.chainlist()[-1]
+        if len(self.chainlist()) > 0:
+            return self.chainlist()[-1]
+        else:
+            return None
 
     def chainlist(self):
         return list(self.chain.queue)
 
     def restart_cycle(self):
         self.ping_pool = {}
-        self.tick_pool = {}
+        self.tick_pool = PriorityQueue()
+
+    def tick_already_chosen(self):
+        if len(list(self.tick_pool.queue)) == 0:
+            return False
+        else:
+            return True
 
     def add_to_ping_pool(self, ping):
         addr_to_add = pubkey_to_addr(ping['pubkey'])
@@ -54,8 +63,8 @@ class Clockchain(object):
     def add_to_tick_pool(self, tick):
         tick_copy = copy.deepcopy(tick)
 
-        # Make sure the first tick received becomes the active tick
-        if len(list(self.tick_pool.queue)) == 0:
+        # Make sure the first received tick becomes the active tick
+        if not self.tick_already_chosen():
             self.active_tick = tick_copy
 
         tick_continuity = measure_tick_continuity(tick_copy, self.chainlist())
@@ -79,10 +88,13 @@ class Clockchain(object):
         highest_tick_ref = highest_tick_copy.pop('this_tick', None)
         if highest_tick_ref is not None:
             tick_dict[highest_tick_ref] = highest_tick_copy
+        else:
+            # TODO: Create the ref from scratch if it wasn't found in dict
+            pass
 
-        # Add all ticks which achieved same continuity to the dictionary
+        # Add all ticks with same continuity values to the dictionary ----
         # WARNING: This MUST happen less than 50% of the time and result in
-        # usually only 1 winner, so chain only branches occasionally
+        # usually only 1 winner, so that chain only branches occasionally
         # and thus doesn't become an exponentially growing tree.
         # This is the main condition to achieve network-wide consensus
         next_highest_score, next_highest_tick = self.tick_pool.get_nowait()

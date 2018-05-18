@@ -32,6 +32,9 @@ class API(object):
 
         @app.route('/forward/tick', methods=['POST'])
         def forward_tick():
+            if self.networker.block_ticks:
+                return "not accepting further ticks", 400
+
             tick = request.get_json()
 
             if self.check_duplicate(tick):
