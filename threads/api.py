@@ -63,16 +63,14 @@ class API(object):
             if self.check_duplicate(ping):
                 return "duplicate request please wait 10s", 400
 
-            # If we are in "reissue ping" stage, overwrite ping in ping pool
+            reissue = False
+            pool_to_check = self.clockchain.ping_pool
             if self.networker.stage == "reissue-ping":
-                pool_to_check = None
-            else:
-                pool_to_check = self.clockchain.ping_pool
+                reissue = True
 
-            if not validate_ping(ping, pool_to_check):
+            if not validate_ping(ping, pool_to_check, reissue):
                 return "Invalid ping", 400
 
-            # Add to pool
             self.clockchain.add_to_ping_pool(ping)
 
             # TODO: Why would anyone forward others pings? Only incentivized

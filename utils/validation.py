@@ -126,16 +126,20 @@ def validate_tick(tick, active_tick=None, possible_previous_ticks=None):
     return True
 
 
-def validate_ping(ping, pingpool=None):
+def validate_ping(ping, pingpool=None, reissue=False):
     if not validate_schema(ping, 'ping_schema.json'):
         logger.debug("Ping failed schema validation")
         return False
 
-    # Check addr already not in dict
     if pingpool is not None:
-        if pubkey_to_addr(ping['pubkey']) in pingpool:
-            logger.debug("Ping failed poolcheck validation")
-            return False
+        if reissue:
+            if pubkey_to_addr(ping['pubkey']) not in pingpool:
+                logger.debug("Ping-to-update's pubkey not found in pingpool")
+                return False
+        else:
+            if pubkey_to_addr(ping['pubkey']) in pingpool:
+                logger.debug("Ping was already in pool")
+                return False
 
     # Check hash and sig, keeping in mind signature might be popped off
     if not validate_sig_hash(ping):

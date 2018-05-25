@@ -1,7 +1,7 @@
 from utils.validation import validate_ping, validate_tick
 from utils.helpers import utcnow, standard_encode, mine
 from utils.common import logger, credentials, config
-from utils.pki import sign
+from utils.pki import sign, pubkey_to_addr
 import time
 import threading
 
@@ -21,9 +21,16 @@ class Timeminer(object):
         # Always construct ping in the following order:
         # 1) Init 2) Mine+nonce 3) Add signature
         # This is because the order of nonce and sig creation matters
+
         ping = {'pubkey': credentials.pubkey,
                 'timestamp': utcnow(),
                 'reference': reference}
+
+        # Do not update timestamp when reissuing, so tick median ts stays same
+        if reissue:
+            addr_to_check = pubkey_to_addr(credentials.pubkey)
+            my_own_previous_ping = self.clockchain.ping_pool[addr_to_check]
+            ping['timestamp'] = my_own_previous_ping['timestamp']
 
         _, nonce = mine(ping)
         ping['nonce'] = nonce
@@ -31,16 +38,13 @@ class Timeminer(object):
         signature = sign(standard_encode(ping), credentials.privkey)
         ping['signature'] = signature
 
+        pool_to_validate = self.clockchain.ping_pool
+
         # Validate own ping
-        if reissue:
-            pool_to_validate = None
-        else:
-            pool_to_validate = self.clockchain.ping_pool
-        if not validate_ping(ping, pool_to_validate):
+        if not validate_ping(ping, pool_to_validate, reissue):
             logger.debug("Failed own ping validation")
             return False
 
-        # Add to pool
         self.clockchain.add_to_ping_pool(ping)
 
         # Forward to peers (this must be after all validation)

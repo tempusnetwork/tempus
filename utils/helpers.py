@@ -53,6 +53,7 @@ def measure_tick_continuity(tick_dict, chain):
             chosen_tick = tick_itself
             prev_ref = tick_itself['prev_tick']
         else:
+            # TODO: Fix here
             chosen_tick = possible_ticks[prev_ref]
             prev_ref = chosen_tick['prev_tick']
 
