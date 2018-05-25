@@ -1,4 +1,4 @@
-from utils.helpers import hasher, measure_tick_continuity, mine
+from utils.helpers import hasher, measure_tick_continuity
 from utils.common import logger, credentials, config
 from utils.pki import pubkey_to_addr
 from queue import Queue, PriorityQueue
@@ -26,7 +26,7 @@ class Clockchain(object):
         }
 
         self.active_tick = tick
-        genesis_dict = self.dictify(self.active_tick)
+        genesis_dict = self.json_dict_to_proper_dict(self.active_tick)
         self.chain.put(genesis_dict)
 
     def current_tick_ref(self):
@@ -38,7 +38,7 @@ class Clockchain(object):
 
         return hasher(last_block_copy)
 
-    def dictify(self, tick):
+    def json_dict_to_proper_dict(self, tick):
         dictified = {}
 
         tick_copy = copy.deepcopy(tick)
@@ -84,8 +84,8 @@ class Clockchain(object):
         if not self.tick_already_chosen():
             self.active_tick = tick_copy
 
-        tick_continuity = measure_tick_continuity(self.dictify(tick_copy)
-                                                  , self.chainlist())
+        tick_continuity = measure_tick_continuity(
+            self.json_dict_to_proper_dict(tick_copy), self.chainlist())
 
         # Putting minus sign on the continuity measurement since PriorityQueue
         # Returns the *lowest* valued item first, while we want *highest*
@@ -99,7 +99,7 @@ class Clockchain(object):
         # Get highest cumulative continuity tick
         highest_score, highest_tick = self.tick_pool.get()
 
-        tick_dict = self.dictify(highest_tick)
+        tick_dict = self.json_dict_to_proper_dict(highest_tick)
 
         # ---- Add all ticks with same continuity values to the dictionary ----
         # WARNING: This MUST happen less than 50% of the time and result in
@@ -111,8 +111,9 @@ class Clockchain(object):
         else:
             next_highest_score, next_highest_tick = (float('nan'), {})
 
+        # Add further candidates that have same score (this creates the forking)
         while highest_score == next_highest_score and not self.tick_pool.empty():
-            dict_to_add = self.dictify(next_highest_tick)
+            dict_to_add = self.json_dict_to_proper_dict(next_highest_tick)
             tick_dict = {**tick_dict, **dict_to_add}  # Merging dictionaries
 
             next_highest_score, next_highest_tick = self.tick_pool.get()

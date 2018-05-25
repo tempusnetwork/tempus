@@ -32,7 +32,7 @@ class API(object):
 
         @app.route('/forward/tick', methods=['POST'])
         def forward_tick():
-            if self.networker.stage == 4:
+            if self.networker.stage == "consolidate-ticks":
                 return "not accepting further ticks", 400
 
             tick = request.get_json()
@@ -64,7 +64,7 @@ class API(object):
                 return "duplicate request please wait 10s", 400
 
             # If we are in "reissue ping" stage, overwrite ping in ping pool
-            if self.networker.stage == 2:
+            if self.networker.stage == "reissue-ping":
                 pool_to_check = None
             else:
                 pool_to_check = self.clockchain.ping_pool
@@ -149,7 +149,7 @@ class API(object):
         @app.route('/info/clockchain', methods=['GET'])
         def info_clockchain():
             response = {
-                'chain': self.clockchain.chain
+                'chain': self.clockchain.chainlist()
             }
             return jsonify(response), 200
 

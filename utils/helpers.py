@@ -46,10 +46,9 @@ def measure_tick_continuity(tick_dict, chain):
     # TODO: Do running calculation in clockchain instead
     # TODO: so we dont recalculate this every time?
 
-    # Traverse our tree backwards
+    # Traverse block-tree backwards
     for idx, possible_ticks in enumerate(reversed(extended_chain)):
         if idx == 0:
-            logger.debug(possible_ticks)
             tick_itself = list(possible_ticks.values())[0]
             chosen_tick = tick_itself
             prev_ref = tick_itself['prev_tick']
@@ -66,6 +65,9 @@ def measure_tick_continuity(tick_dict, chain):
     # TODO: Is this not gameable by having tons of pubkeys/ticks/pings?
     for pubkey in continuity_dict:
         tot_sum += continuity_dict[pubkey]
+
+    if len(extended_chain) == 0:
+        return 0
 
     return tot_sum / len(extended_chain)
 

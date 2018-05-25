@@ -138,32 +138,33 @@ class Timeminer(object):
 
                 logger.debug("Haven't ticked this round! Starting to mine..")
 
-                self.networker.stage = 1
+                self.networker.stage = "init"
 
-                success = self.generate_and_process_tick()
-                if not success:
+                successful = self.generate_and_process_tick()
+                if not successful:
                     continue
 
                 time.sleep(config['tick_step_time'])
 
                 logger.debug("Reissue ping stage------------------------------")
-                self.networker.stage = 2
+                self.networker.stage = "reissue-ping"
                 # Reissue a ping for highest continuity tick in tick_pool
                 self.generate_and_process_ping(
                     self.clockchain.current_highest_tick_ref(), reissue=True)
 
                 time.sleep(config['tick_step_time'])
                 logger.debug("Reissue tick stage------------------------------")
-                self.networker.stage = 3
+                self.networker.stage = "reissue-tick"
 
                 # TODO: Fix timediff bug +
                 # TODO: only do reissue if my own tick got highest vote
+
                 self.generate_and_process_tick(reissue=True)
 
                 time.sleep(config['tick_step_time'])
 
                 logger.debug("Consolidate ticks stage-------------------------")
-                self.networker.stage = 4
+                self.networker.stage = "consolidate-ticks"
 
                 self.clockchain.consolidate_ticks_to_chain()
 
