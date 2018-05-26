@@ -71,6 +71,12 @@ class Clockchain(object):
     def tick_pool_size(self):
         return len(list(self.tick_pool.queue))
 
+    def tick_already_chosen(self):
+        if self.tick_pool_size() == 0:
+            return False
+        else:
+            return True
+
     def add_to_ping_pool(self, ping):
         addr_to_add = pubkey_to_addr(ping['pubkey'])
         self.ping_pool[addr_to_add] = ping
@@ -131,23 +137,25 @@ class Clockchain(object):
 
     def active_tick(self):
         # This will be the lowest score (highest cumulative cont.)
-        _, _, tick = list(self.tick_pool.queue)[0]
+        if self.tick_pool_size() > 0:
+            _, _, tick = list(self.tick_pool.queue)[0]
+        else:
+            # Choose at random
+            tick = next(iter(self.possible_previous_ticks().values()))
         return tick
 
     def consolidate_highest_voted_to_chain(self):
-        # Get highest voted ticks
+        # ---- Add all ticks with same amount of votes to the dictionary ----
+        # WARNING: This MUST happen less than 50% of the time and result in
+        # usually only 1 winner, so that chain only branches occasionally
+        # and thus doesn't become an exponentially growing tree.
+        # This is the main condition to achieve network-wide consensus
         highest_ticks = self.get_ticks_by_ref(self.top_tick_refs())
 
         tick_dict = {}
         for tick in highest_ticks:
             to_add = self.json_tick_to_chain_tick(tick)
             tick_dict = {**tick_dict, **to_add}
-
-        # ---- Add all ticks with same continuity values to the dictionary ----
-        # WARNING: This MUST happen less than 50% of the time and result in
-        # usually only 1 winner, so that chain only branches occasionally
-        # and thus doesn't become an exponentially growing tree.
-        # This is the main condition to achieve network-wide consensus
 
         if self.chain.full():
             # This removes earliest item from queue

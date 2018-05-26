@@ -155,7 +155,7 @@ class Timeminer(object):
                 logger.debug("Consolidate ticks stage-------------------------")
                 self.networker.stage = "consolidate"
 
-                self.clockchain.consolidate_ticks_to_chain()
+                self.clockchain.consolidate_highest_voted_to_chain()
 
                 self.added_ping = False
             else:

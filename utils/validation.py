@@ -128,7 +128,7 @@ def validate_tick(tick, current_height=None, possible_previous_ticks=None):
     return True
 
 
-def validate_ping(ping, ping_pool, vote, vote_pool):
+def validate_ping(ping, ping_pool=None, vote=False, vote_pool=None):
     if not validate_schema(ping, 'ping_schema.json'):
         logger.debug("Ping failed schema validation")
         return False
