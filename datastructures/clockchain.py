@@ -9,6 +9,7 @@ class Clockchain(object):
     def __init__(self):
         self.chain = Queue(maxsize=config['chain_max_length'])
         self.ping_pool = {}
+        self.vote_pool = {}
         # Priority queue because we want to sort by cumulative continuity
         self.tick_pool = PriorityQueue()
 
@@ -25,20 +26,19 @@ class Clockchain(object):
                          'e6d173a7592586547f8a658c2a160000'
         }
 
-        self.active_tick = tick
-        genesis_dict = self.json_dict_to_proper_dict(self.active_tick)
+        genesis_dict = self.json_tick_to_chain_tick(tick)
         self.chain.put(genesis_dict)
 
     def current_tick_ref(self):
-        last_block_copy = copy.deepcopy(self.active_tick)
+        current_tick_copy = copy.deepcopy(self.active_tick())
 
         # Removing signature and this_tick in order to return correct hash
-        last_block_copy.pop('signature', None)
-        last_block_copy.pop('this_tick', None)
+        current_tick_copy.pop('signature', None)
+        current_tick_copy.pop('this_tick', None)
 
-        return hasher(last_block_copy)
+        return hasher(current_tick_copy)
 
-    def json_dict_to_proper_dict(self, tick):
+    def json_tick_to_chain_tick(self, tick):
         dictified = {}
 
         tick_copy = copy.deepcopy(tick)
@@ -52,7 +52,7 @@ class Clockchain(object):
         return dictified
 
     def current_height(self):
-        return self.active_tick['height']
+        return self.active_tick()['height']
 
     def possible_previous_ticks(self):
         if len(self.chainlist()) > 0:
@@ -65,58 +65,89 @@ class Clockchain(object):
 
     def restart_cycle(self):
         self.ping_pool = {}
+        self.vote_pool = {}
         self.tick_pool = PriorityQueue()
 
-    def tick_already_chosen(self):
-        if len(list(self.tick_pool.queue)) == 0:
-            return False
-        else:
-            return True
+    def tick_pool_size(self):
+        return len(list(self.tick_pool.queue))
 
     def add_to_ping_pool(self, ping):
         addr_to_add = pubkey_to_addr(ping['pubkey'])
         self.ping_pool[addr_to_add] = ping
 
+    def add_to_vote_pool(self, vote):
+        ref_to_vote_on = vote['reference']
+        if ref_to_vote_on in self.vote_pool:
+            self.vote_pool[ref_to_vote_on] = self.vote_pool[ref_to_vote_on] + 1
+        else:
+            self.vote_pool[ref_to_vote_on] = 1
+
     def add_to_tick_pool(self, tick):
         tick_copy = copy.deepcopy(tick)
 
-        # Make sure the first received tick becomes the active tick
-        if not self.tick_already_chosen():
-            self.active_tick = tick_copy
-
         tick_continuity = measure_tick_continuity(
-            self.json_dict_to_proper_dict(tick_copy), self.chainlist())
+            self.json_tick_to_chain_tick(tick_copy), self.chainlist())
+
+        # Using tick number to insert into PriorityQueue, this allows for
+        # "Stable sorting" of equal valued priorities (FIFO)
+        # This guarantees that the top item is first sorted by Priority,
+        # and then by insertion order
+        tick_number = self.tick_pool_size() + 1
 
         # Putting minus sign on the continuity measurement since PriorityQueue
         # Returns the *lowest* valued item first, while we want *highest*
-        self.tick_pool.put((-tick_continuity, tick_copy))
+        self.tick_pool.put((-tick_continuity, tick_number, tick_copy))
 
-    def current_highest_tick_ref(self):
-        _, tick = list(self.tick_pool.queue)[0]
-        return tick['this_tick']
+    # Return highest voted ticks (several if shared top score)
+    def top_tick_refs(self):
+        highest_voted_ticks = []
 
-    def consolidate_ticks_to_chain(self):
-        # Get highest cumulative continuity tick
-        highest_score, highest_tick = self.tick_pool.get()
+        # Sort by value (amount of votes)
+        sorted_votes = sorted(self.vote_pool.items(), key=lambda x: x[1],
+                              reverse=True)
 
-        tick_dict = self.json_dict_to_proper_dict(highest_tick)
+        top_ref, top_score = sorted_votes.pop(0)
+        highest_voted_ticks.append(top_ref)
+
+        for vote in sorted_votes:
+            next_ref, next_score = vote
+            if next_score == top_score:
+                highest_voted_ticks.append(next_ref)
+            else:
+                break
+
+        return highest_voted_ticks
+
+    def get_ticks_by_ref(self, references):
+        # Get the actual tick (index 2) from the tuple (_, _, tick)
+        # And put it in a list
+        list_of_all_ticks = [x[2] for x in list(self.tick_pool.queue)]
+
+        # Return list of all ticks whose ref matches supplied ref
+        filtered_ticks = [tick for tick in list_of_all_ticks if
+                          tick['this_tick'] in references]
+
+        return filtered_ticks
+
+    def active_tick(self):
+        # This will be the lowest score (highest cumulative cont.)
+        _, _, tick = list(self.tick_pool.queue)[0]
+        return tick
+
+    def consolidate_highest_voted_to_chain(self):
+        # Get highest voted ticks
+        highest_ticks = self.get_ticks_by_ref(self.top_tick_refs())
+
+        tick_dict = {}
+        for tick in highest_ticks:
+            to_add = self.json_tick_to_chain_tick(tick)
+            tick_dict = {**tick_dict, **to_add}
 
         # ---- Add all ticks with same continuity values to the dictionary ----
         # WARNING: This MUST happen less than 50% of the time and result in
         # usually only 1 winner, so that chain only branches occasionally
         # and thus doesn't become an exponentially growing tree.
         # This is the main condition to achieve network-wide consensus
-        if not self.tick_pool.empty():
-            next_highest_score, next_highest_tick = self.tick_pool.get()
-        else:
-            next_highest_score, next_highest_tick = (float('nan'), {})
-
-        # Add further candidates that have same score (this creates the forking)
-        while highest_score == next_highest_score and not self.tick_pool.empty():
-            dict_to_add = self.json_dict_to_proper_dict(next_highest_tick)
-            tick_dict = {**tick_dict, **dict_to_add}  # Merging dictionaries
-
-            next_highest_score, next_highest_tick = self.tick_pool.get()
 
         if self.chain.full():
             # This removes earliest item from queue
@@ -124,4 +155,3 @@ class Clockchain(object):
 
         self.chain.put(tick_dict)
         self.restart_cycle()
-

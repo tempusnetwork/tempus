@@ -32,7 +32,7 @@ class API(object):
 
         @app.route('/forward/tick', methods=['POST'])
         def forward_tick():
-            if self.networker.stage == "consolidate-ticks":
+            if self.networker.stage == "consolidate":
                 return "not accepting further ticks", 400
 
             tick = request.get_json()
@@ -40,7 +40,7 @@ class API(object):
             if self.check_duplicate(tick):
                 return "duplicate request please wait 10s", 400
 
-            if not validate_tick(tick, self.clockchain.active_tick,
+            if not validate_tick(tick, self.clockchain.current_height(),
                                  self.clockchain.possible_previous_ticks()):
                 return "Invalid tick", 400
 
@@ -63,15 +63,18 @@ class API(object):
             if self.check_duplicate(ping):
                 return "duplicate request please wait 10s", 400
 
-            reissue = False
-            pool_to_check = self.clockchain.ping_pool
-            if self.networker.stage == "reissue-ping":
-                reissue = True
+            vote = False
+            if self.networker.stage == "vote":
+                vote = True
 
-            if not validate_ping(ping, pool_to_check, reissue):
+            if not validate_ping(ping, self.clockchain.ping_pool,
+                                 vote, self.clockchain.vote_pool):
                 return "Invalid ping", 400
 
-            self.clockchain.add_to_ping_pool(ping)
+            if vote:
+                self.clockchain.add_to_vote_pool(ping)
+            else:
+                self.clockchain.add_to_ping_pool(ping)
 
             # TODO: Why would anyone forward others pings? Only incentivized
             # TODO: to forward own pings (to get highest uptime)
@@ -162,5 +165,9 @@ class API(object):
         @app.route('/info/ping_pool', methods=['GET'])
         def info_ping_pool():
             return jsonify(remap(self.clockchain.ping_pool)), 200
+
+        @app.route('/info/vote_pool', methods=['GET'])
+        def info_vote_pool():
+            return jsonify(remap(self.clockchain.vote_pool)), 200
 
         return app

@@ -83,7 +83,7 @@ def validate_sig_hash(item):
     return True
 
 
-def validate_tick(tick, active_tick=None, possible_previous_ticks=None):
+def validate_tick(tick, current_height=None, possible_previous_ticks=None):
     # Doing validation on a copy so that the original keeps its "this_tick" ref
     # Otherwise the tick dict will be modified by any operations done here
     tick_copy = copy.deepcopy(tick)
@@ -101,8 +101,8 @@ def validate_tick(tick, active_tick=None, possible_previous_ticks=None):
         logger.debug("Tick failed signature and hash checking")
         return False
 
-    if active_tick is not None:
-        if tick_copy['height'] != active_tick['height'] + 1:
+    if current_height is not None:
+        if tick_copy['height'] != current_height + 1:
             logger.debug("Tick failed height check")
             return False
 
@@ -118,6 +118,8 @@ def validate_tick(tick, active_tick=None, possible_previous_ticks=None):
 
     # Check all pings in list
     for ping in tick_copy['list']:
+        # TODO: Check if tick's pings are in my own pool?
+        # TODO: So they dont just send any random pings
         valid_ping = validate_ping(ping)
         if not valid_ping:
             logger.debug("tick invalid due to containing invalid ping")
@@ -126,18 +128,22 @@ def validate_tick(tick, active_tick=None, possible_previous_ticks=None):
     return True
 
 
-def validate_ping(ping, pingpool=None, reissue=False):
+def validate_ping(ping, ping_pool, vote, vote_pool):
     if not validate_schema(ping, 'ping_schema.json'):
         logger.debug("Ping failed schema validation")
         return False
 
-    if pingpool is not None:
-        if reissue:
-            if pubkey_to_addr(ping['pubkey']) not in pingpool:
-                logger.debug("Ping-to-update's pubkey not found in pingpool")
+    if ping_pool is not None:
+        if vote:
+            if pubkey_to_addr(ping['pubkey']) not in ping_pool:
+                logger.debug("Ping-voters's pubkey not found in pingpool")
+                return False
+            if vote_pool is not None and \
+                    pubkey_to_addr(ping['pubkey']) in vote_pool:
+                logger.debug("Ping-voter tried to vote twice!")
                 return False
         else:
-            if pubkey_to_addr(ping['pubkey']) in pingpool:
+            if pubkey_to_addr(ping['pubkey']) in ping_pool:
                 logger.debug("Ping was already in pool")
                 return False
 

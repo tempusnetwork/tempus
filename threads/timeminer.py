@@ -1,7 +1,7 @@
 from utils.validation import validate_ping, validate_tick
 from utils.helpers import utcnow, standard_encode, mine
 from utils.common import logger, credentials, config
-from utils.pki import sign, pubkey_to_addr
+from utils.pki import sign
 import time
 import threading
 
@@ -17,7 +17,7 @@ class Timeminer(object):
         self.ping_thread.start()
         self.tick_thread.start()
 
-    def generate_and_process_ping(self, reference, reissue=False):
+    def generate_and_process_ping(self, reference, vote=False):
         # Always construct ping in the following order:
         # 1) Init 2) Mine+nonce 3) Add signature
         # This is because the order of nonce and sig creation matters
@@ -26,26 +26,22 @@ class Timeminer(object):
                 'timestamp': utcnow(),
                 'reference': reference}
 
-        # Do not update timestamp when reissuing, so tick median ts stays same
-        if reissue:
-            addr_to_check = pubkey_to_addr(credentials.pubkey)
-            my_own_previous_ping = self.clockchain.ping_pool[addr_to_check]
-            ping['timestamp'] = my_own_previous_ping['timestamp']
-
         _, nonce = mine(ping)
         ping['nonce'] = nonce
 
         signature = sign(standard_encode(ping), credentials.privkey)
         ping['signature'] = signature
 
-        pool_to_validate = self.clockchain.ping_pool
-
         # Validate own ping
-        if not validate_ping(ping, pool_to_validate, reissue):
+        if not validate_ping(ping, self.clockchain.ping_pool,
+                             vote, self.clockchain.vote_pool):
             logger.debug("Failed own ping validation")
             return False
 
-        self.clockchain.add_to_ping_pool(ping)
+        if vote:
+            self.clockchain.add_to_vote_pool(ping)
+        else:
+            self.clockchain.add_to_ping_pool(ping)
 
         # Forward to peers (this must be after all validation)
         self.networker.forward(data_dict=ping, route='ping',
@@ -56,9 +52,9 @@ class Timeminer(object):
 
         return True
 
-    def generate_and_process_tick(self, reissue=False):
+    def generate_and_process_tick(self):
         # Here we already have active tick, so no point in sending own
-        if self.clockchain.tick_already_chosen() and not reissue:
+        if self.clockchain.tick_already_chosen():
             logger.debug("Already chosen at tick start")
             return False
 
@@ -73,7 +69,7 @@ class Timeminer(object):
 
         this_tick, nonce = mine(tick)
 
-        if self.clockchain.tick_already_chosen() and not reissue:
+        if self.clockchain.tick_already_chosen():
             logger.debug("Already chosen after mining")
             return False
 
@@ -86,18 +82,16 @@ class Timeminer(object):
         # this_tick is not actually necessary according to tick schema
         tick['this_tick'] = this_tick
 
-        # Validate own tick
-        active_tick = self.clockchain.active_tick
-        possible_previous = self.clockchain.possible_previous_ticks()
-        if reissue:
-            active_tick = None
-            possible_previous = None
+        current_height = self.clockchain.current_height()
 
-        if not validate_tick(tick, active_tick, possible_previous):
+        possible_previous = self.clockchain.possible_previous_ticks()
+
+        # Validate own tick
+        if not validate_tick(tick, current_height, possible_previous):
             logger.debug("Failed own tick validation")
             return False
 
-        if self.clockchain.tick_already_chosen() and not reissue:
+        if self.clockchain.tick_already_chosen():
             logger.debug("Already chosen after validation")
             return False
 
@@ -150,25 +144,16 @@ class Timeminer(object):
 
                 time.sleep(config['tick_step_time'])
 
-                logger.debug("Reissue ping stage------------------------------")
-                self.networker.stage = "reissue-ping"
-                # Reissue a ping for highest continuity tick in tick_pool
+                logger.debug("Voting stage------------------------------")
+                self.networker.stage = "vote"
+                # Use a ping to vote for highest continuity tick in tick_pool
                 self.generate_and_process_ping(
-                    self.clockchain.current_highest_tick_ref(), reissue=True)
-
-                time.sleep(config['tick_step_time'])
-                logger.debug("Reissue tick stage------------------------------")
-                self.networker.stage = "reissue-tick"
-
-                # TODO: Fix timediff bug +
-                # TODO: only do reissue if my own tick got highest vote
-
-                self.generate_and_process_tick(reissue=True)
+                    self.clockchain.active_tick()['this_tick'], vote=True)
 
                 time.sleep(config['tick_step_time'])
 
                 logger.debug("Consolidate ticks stage-------------------------")
-                self.networker.stage = "consolidate-ticks"
+                self.networker.stage = "consolidate"
 
                 self.clockchain.consolidate_ticks_to_chain()
 
