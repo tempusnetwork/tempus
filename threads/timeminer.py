@@ -139,8 +139,10 @@ class Timeminer(object):
                 self.networker.stage = "init"
 
                 successful = self.generate_and_process_tick()
-                if not successful:
-                    continue
+
+                #if not successful:
+                    #self.clockchain.restart_cycle()
+                    #continue
 
                 time.sleep(config['tick_step_time'])
 
