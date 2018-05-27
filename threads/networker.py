@@ -77,6 +77,7 @@ class Networker(object):
 
         # Dont forward to peers if exceeding certain amount of hops
         if redistribute < config['max_hops']:
+            redistribute = redistribute + 1
             # TODO: What happens if malicious actor fakes the ?addr= ?? or the
             # amount of hops?
             # list() used to avoid dict size change exception
@@ -84,7 +85,6 @@ class Networker(object):
                 try:  # Add self.addr in query to identify self to peers
                     # If origin addr is not target peer addr
                     if origin != self.peers[peer]:
-                        redistribute = redistribute + 1
                         requests.post(
                             peer + '/forward/' + route + '?addr=' + origin +
                             "&redistribute=" + str(redistribute),
@@ -93,6 +93,7 @@ class Networker(object):
                 except requests.exceptions.ReadTimeout:
                     logger.debug("Couldn't forward to: " + peer + ", removing")
                     self.unregister_peer(peer)
+                    pass
                 except Exception as e:
                     handle_exception(e)
                     pass

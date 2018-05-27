@@ -148,7 +148,15 @@ class Clockchain(object):
     # Returns one of the possibilities (at random?)
     def latest_selected_tick(self):
         # TODO: Return the one with highest amount of pings?
-        return next(iter(self.possible_previous_ticks().values()))
+        tick = None
+        while tick is None:
+            try:
+                tick = next(iter(self.possible_previous_ticks().values()))
+            except StopIteration:
+                tick = None
+                pass
+
+        return tick
 
     def active_tick(self):
         # This will be the lowest score (highest cumulative cont.)
