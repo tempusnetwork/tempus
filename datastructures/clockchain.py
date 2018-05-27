@@ -176,7 +176,8 @@ class Clockchain(object):
 
         highest_ticks = self.get_ticks_by_ref(top_tick_refs)
 
-        logger.debug("Top tick refs: " + str(top_tick_refs))
+        logger.debug("Top tick refs with " + str(len(highest_ticks[0]['list']))
+                     + " pings each:" + str(top_tick_refs))
 
         tick_dict = {}
         for tick in highest_ticks:

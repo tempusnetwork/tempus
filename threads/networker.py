@@ -94,6 +94,10 @@ class Networker(object):
                     logger.debug("Couldn't forward to: " + peer + ", removing")
                     self.unregister_peer(peer)
                     pass
+                except requests.exceptions.ConnectionError:
+                    logger.debug("Couldn't forward to: " + peer + ", removing")
+                    self.unregister_peer(peer)
+                    pass
                 except Exception as e:
                     handle_exception(e)
                     pass
@@ -123,6 +127,9 @@ class Networker(object):
                     status_code = response.status_code
                     # logger.info("Status for peer adding: " + str(status_code))
                 except requests.exceptions.ReadTimeout:
+                    logger.debug("Couldn't connect to " + peer)
+                    continue
+                except requests.exceptions.ConnectionError:
                     logger.debug("Couldn't connect to " + peer)
                     continue
                 except Exception as e:

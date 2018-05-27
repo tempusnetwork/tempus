@@ -11,6 +11,6 @@
     "log_file": "../logs/tempus",
     "port_timer_timeout": 3,
     "tick_period_margin": 2,
-    "cycle_step_time": 20,
+    "cycle_step_time": 7,
     "chain_max_length": 5
 }
