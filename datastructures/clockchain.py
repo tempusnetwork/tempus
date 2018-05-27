@@ -123,6 +123,8 @@ class Clockchain(object):
         top_ref, top_score = sorted_votes.pop(0)
         highest_voted_ticks.append(top_ref)
 
+        logger.debug("Highest score achieved was: " + str(top_score))
+
         for vote in sorted_votes:
             next_ref, next_score = vote
             if next_score == top_score:

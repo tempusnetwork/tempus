@@ -151,6 +151,7 @@ class Timeminer(object):
                 self.networker.stage = "vote"
                 # Use a ping to vote for highest continuity tick in tick_pool
 
+                # TODO: What happens if I just selfishly vote for my own tick?
                 active_tick_ref = self.clockchain.active_tick()['this_tick']
 
                 self.generate_and_process_ping(active_tick_ref, vote=True)
