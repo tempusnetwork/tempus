@@ -52,7 +52,7 @@ class Clockchain(object):
         return dictified
 
     def current_height(self):
-        return self.active_tick()['height']
+        return self.latest_consolidated_tick()['height']
 
     def possible_previous_ticks(self):
         if len(self.chainlist()) > 0:
@@ -135,13 +135,17 @@ class Clockchain(object):
 
         return filtered_ticks
 
+    # Returns one of the possibilities (at random?)
+    def latest_consolidated_tick(self):
+        # TODO: Return the one with highest amount of pings? 
+        return next(iter(self.possible_previous_ticks().values()))
+
     def active_tick(self):
         # This will be the lowest score (highest cumulative cont.)
         if self.tick_pool_size() > 0:
             _, _, tick = list(self.tick_pool.queue)[0]
         else:
-            # Choose at random
-            tick = next(iter(self.possible_previous_ticks().values()))
+            tick = self.latest_consolidated_tick()
         return tick
 
     def consolidate_highest_voted_to_chain(self):
@@ -150,7 +154,11 @@ class Clockchain(object):
         # usually only 1 winner, so that chain only branches occasionally
         # and thus doesn't become an exponentially growing tree.
         # This is the main condition to achieve network-wide consensus
-        highest_ticks = self.get_ticks_by_ref(self.top_tick_refs())
+        top_tick_refs = self.top_tick_refs()
+
+        highest_ticks = self.get_ticks_by_ref(top_tick_refs)
+
+        logger.debug("Top tick refs: " + str(top_tick_refs))
 
         tick_dict = {}
         for tick in highest_ticks:

@@ -138,19 +138,19 @@ class Timeminer(object):
 
                 self.networker.stage = "init"
 
-                successful = self.generate_and_process_tick()
-
-                #if not successful:
-                    #self.clockchain.restart_cycle()
-                    #continue
+                self.generate_and_process_tick()
 
                 time.sleep(config['tick_step_time'])
 
                 logger.debug("Voting stage------------------------------")
                 self.networker.stage = "vote"
                 # Use a ping to vote for highest continuity tick in tick_pool
-                self.generate_and_process_ping(
-                    self.clockchain.active_tick()['this_tick'], vote=True)
+
+                active_tick_ref = self.clockchain.active_tick()['this_tick']
+
+                self.generate_and_process_ping(active_tick_ref, vote=True)
+
+                logger.debug("Voted for: " + str(active_tick_ref))
 
                 time.sleep(config['tick_step_time'])
 
