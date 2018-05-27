@@ -176,17 +176,20 @@ class Clockchain(object):
 
         highest_ticks = self.get_ticks_by_ref(top_tick_refs)
 
-        logger.debug("Top tick refs with " + str(len(highest_ticks[0]['list']))
-                     + " pings each:" + str(top_tick_refs))
+        # TODO: Should always be > 0 but sometimes not, when unsynced...
+        if len(highest_ticks) > 0:
+            logger.debug("Top tick refs with " + str(len(highest_ticks[0]['list']))
+                         + " pings each:" + str(top_tick_refs))
 
-        tick_dict = {}
-        for tick in highest_ticks:
-            to_add = self.json_tick_to_chain_tick(tick)
-            tick_dict = {**tick_dict, **to_add}
+            tick_dict = {}
+            for tick in highest_ticks:
+                to_add = self.json_tick_to_chain_tick(tick)
+                tick_dict = {**tick_dict, **to_add}
 
-        if self.chain.full():
-            # This removes earliest item from queue
-            self.chain.get()
+            if self.chain.full():
+                # This removes earliest item from queue
+                self.chain.get()
 
-        self.chain.put(tick_dict)
+            self.chain.put(tick_dict)
+
         self.restart_cycle()

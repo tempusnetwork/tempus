@@ -2,6 +2,7 @@
     "generate_rand_addr": true,
     "timeout": 4,
     "max_randint": 100000000000,
+    "max_peers": 4,
     "nonce_jump": 1000,
     "difficulty": 4,
     "expiring_dict_max_len": 1000,
@@ -11,6 +12,6 @@
     "log_file": "../logs/tempus",
     "port_timer_timeout": 3,
     "tick_period_margin": 2,
-    "cycle_step_time": 7,
+    "cycle_step_time": 20,
     "chain_max_length": 5
 }

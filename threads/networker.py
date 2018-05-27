@@ -135,10 +135,14 @@ class Networker(object):
                 except Exception as e:
                     handle_exception(e)
                     continue
-                if status_code == 201:
-                    logger.info("Adding peer " + str(peer))
-                    peer_addr = response.text
-                    self.register_peer(peer, peer_addr)
+                if status_code in [201, 503]:
+                    if status_code == 201:
+                        logger.info("Adding peer " + str(peer))
+                        peer_addr = response.text
+                        self.register_peer(peer, peer_addr)
+                    if status_code == 503:
+                        logger.info(
+                            "Peer was at peer-maximum, adding his friends")
 
                     # Get all peers of current discovered peers and add to set
                     # (set is to avoid duplicates)

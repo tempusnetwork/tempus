@@ -114,6 +114,11 @@ class API(object):
             if not verify(standard_encode(values), signature, values['pubkey']):
                 return "Invalid signature", 400
 
+            # Return a 503: service unavailable here
+            # so that they can try adding my friends instead
+            if len(self.networker.peers) > config['max_peers']:
+                return "dont need more peers", 503
+
             # TODO: What if rogue peer send fake port? Possible ddos reflection?
             # TODO: Do schema validation for integer sizes / string lengths..
             remote_port = int(values.get('port'))
