@@ -10,8 +10,7 @@
     "max_hops": 1,
     "log_file": "../logs/tempus",
     "port_timer_timeout": 3,
-    "tick_period": 60,
     "tick_period_margin": 2,
-    "tick_step_time": 10,
+    "cycle_step_time": 7,
     "chain_max_length": 20
 }

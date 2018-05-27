@@ -136,7 +136,9 @@ class Timeminer(object):
                 # This is because the order of nonce and sig creation matters
 
                 # Adding a bit of margin for mining, otherwise tick rejected
-                time.sleep(config['tick_period'] + config['tick_period_margin'])
+                time.sleep(config['cycle_step_time']
+                           + config['tick_period_margin'])
+
                 # TODO: Adjust margin based on max possible mining time?
 
                 logger.debug("Haven't ticked this round! Starting to mine..")
@@ -145,20 +147,20 @@ class Timeminer(object):
 
                 self.generate_and_process_tick()
 
-                time.sleep(config['tick_step_time'])
+                time.sleep(config['cycle_step_time'])
 
                 logger.debug("Voting stage------------------------------")
                 self.networker.stage = "vote"
                 # Use a ping to vote for highest continuity tick in tick_pool
 
                 # TODO: What happens if I just selfishly vote for my own tick?
-                active_tick_ref = self.clockchain.active_tick()['this_tick']
+                active_tick_ref = self.clockchain.current_tick_ref()
 
                 self.generate_and_process_ping(active_tick_ref, vote=True)
 
                 logger.debug("Voted for: " + str(active_tick_ref))
 
-                time.sleep(config['tick_step_time'])
+                time.sleep(config['cycle_step_time'])
 
                 logger.debug("Select ticks stage-------------------------")
                 self.networker.stage = "select"

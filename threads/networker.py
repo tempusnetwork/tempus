@@ -79,7 +79,8 @@ class Networker(object):
         if redistribute < config['max_hops']:
             # TODO: What happens if malicious actor fakes the ?addr= ?? or the
             # amount of hops?
-            for peer in self.peers:
+            # list() used to avoid dict size change exception
+            for peer in list(self.peers):
                 try:  # Add self.addr in query to identify self to peers
                     # If origin addr is not target peer addr
                     if origin != self.peers[peer]:
@@ -89,13 +90,17 @@ class Networker(object):
                             "&redistribute=" + str(redistribute),
                             json=data_dict, timeout=config['timeout'])
 
+                except requests.exceptions.ReadTimeout:
+                    logger.debug("Couldn't forward to: " + peer + ", removing")
+                    self.unregister_peer(peer)
                 except Exception as e:
                     handle_exception(e)
                     pass
 
     def unregister_peer(self, url):
         netloc = urlparse(url).netloc
-        del self.peers[netloc]
+        if netloc in self.peers:
+            del self.peers[netloc]
 
     def send_mutual_add_requests(self, peerslist, get_further_peers=False):
         # Preparing a set of further peers to possibly add later on
@@ -115,7 +120,10 @@ class Networker(object):
                         timeout=config['timeout'])
 
                     status_code = response.status_code
-                    logger.info("Status for peer adding: " + str(status_code))
+                    # logger.info("Status for peer adding: " + str(status_code))
+                except requests.exceptions.ReadTimeout:
+                    logger.debug("Couldn't connect to " + peer)
+                    continue
                 except Exception as e:
                     handle_exception(e)
                     continue
