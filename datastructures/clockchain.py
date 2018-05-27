@@ -52,7 +52,7 @@ class Clockchain(object):
         return dictified
 
     def current_height(self):
-        return self.latest_consolidated_tick()['height']
+        return self.latest_selected_tick()['height']
 
     def possible_previous_ticks(self):
         if len(self.chainlist()) > 0:
@@ -82,11 +82,19 @@ class Clockchain(object):
         self.ping_pool[addr_to_add] = ping
 
     def add_to_vote_pool(self, vote):
-        ref_to_vote_on = vote['reference']
-        if ref_to_vote_on in self.vote_pool:
-            self.vote_pool[ref_to_vote_on] = self.vote_pool[ref_to_vote_on] + 1
-        else:
-            self.vote_pool[ref_to_vote_on] = 1
+        addr_to_add = pubkey_to_addr(vote['pubkey'])
+        self.vote_pool[addr_to_add] = vote['reference']
+
+    def get_vote_counts(self):
+        count_dict = {}
+
+        for k, v in self.vote_pool.items():
+            if v in count_dict.keys():
+                count_dict[v] = count_dict[v] + 1
+            else:
+                count_dict[v] = 1
+
+        return count_dict
 
     def add_to_tick_pool(self, tick):
         tick_copy = copy.deepcopy(tick)
@@ -109,8 +117,8 @@ class Clockchain(object):
         highest_voted_ticks = []
 
         # Sort by value (amount of votes)
-        sorted_votes = sorted(self.vote_pool.items(), key=lambda x: x[1],
-                              reverse=True)
+        sorted_votes = sorted(self.get_vote_counts().items(),
+                              key=lambda x: x[1], reverse=True)
 
         top_ref, top_score = sorted_votes.pop(0)
         highest_voted_ticks.append(top_ref)
@@ -136,8 +144,8 @@ class Clockchain(object):
         return filtered_ticks
 
     # Returns one of the possibilities (at random?)
-    def latest_consolidated_tick(self):
-        # TODO: Return the one with highest amount of pings? 
+    def latest_selected_tick(self):
+        # TODO: Return the one with highest amount of pings?
         return next(iter(self.possible_previous_ticks().values()))
 
     def active_tick(self):
@@ -145,10 +153,10 @@ class Clockchain(object):
         if self.tick_pool_size() > 0:
             _, _, tick = list(self.tick_pool.queue)[0]
         else:
-            tick = self.latest_consolidated_tick()
+            tick = self.latest_selected_tick()
         return tick
 
-    def consolidate_highest_voted_to_chain(self):
+    def select_highest_voted_to_chain(self):
         # ---- Add all ticks with same amount of votes to the dictionary ----
         # WARNING: This MUST happen less than 50% of the time and result in
         # usually only 1 winner, so that chain only branches occasionally

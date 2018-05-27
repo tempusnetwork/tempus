@@ -17,7 +17,7 @@ class Networker(object):
         self.peers = {}
         self.port = 0
         self.ready = False
-        self.stage = "init"
+        self.stage = "ping"  # Stages are ping->tick->vote->select
         self.join_network_thread = Thread(target=self.join_network_worker)
         # Timer for activation thread (uses resettable timer to find out port)
         self.t = Timer(config['port_timer_timeout'], self.activate)

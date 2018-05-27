@@ -27,12 +27,40 @@ class API(object):
             self.duplicate_cache[hasher(values)] = True
             return False
 
+    def handle_ping(self, ping, vote=False):
+        if self.check_duplicate(ping):
+            return "duplicate request please wait 10s", 400
+
+        if not validate_ping(ping, self.clockchain.ping_pool, vote):
+            return "Invalid ping", 400
+
+        if vote:
+            self.clockchain.add_to_vote_pool(ping)
+        else:
+            self.clockchain.add_to_ping_pool(ping)
+
+        # TODO: Why would anyone forward others pings? Only incentivized
+        # TODO: to forward own pings (to get highest uptime)
+        # TODO: Solved if you remove peers that do not forward your ping
+
+        route = 'vote' if vote else 'ping'
+
+        redistribute = int(request.args.get('redistribute'))
+        if redistribute:
+            origin = request.args.get('addr')
+            self.networker.forward(data_dict=ping,
+                                   route=route,
+                                   origin=origin,
+                                   redistribute=redistribute)
+
+        return "Added " + route, 201
+
     def create_app(self):
         app = Flask(__name__)
 
         @app.route('/forward/tick', methods=['POST'])
         def forward_tick():
-            if self.networker.stage == "consolidate":
+            if self.networker.stage == "select":
                 return "not accepting further ticks", 400
 
             tick = request.get_json()
@@ -59,36 +87,11 @@ class API(object):
 
         @app.route('/forward/ping', methods=['POST'])
         def forward_ping():
-            ping = request.get_json()
-            if self.check_duplicate(ping):
-                return "duplicate request please wait 10s", 400
+            return self.handle_ping(request.get_json(), vote=False)
 
-            vote = False
-            if self.networker.stage == "vote":
-                vote = True
-
-            if not validate_ping(ping, self.clockchain.ping_pool,
-                                 vote, self.clockchain.vote_pool):
-                return "Invalid ping", 400
-
-            if vote:
-                self.clockchain.add_to_vote_pool(ping)
-            else:
-                self.clockchain.add_to_ping_pool(ping)
-
-            # TODO: Why would anyone forward others pings? Only incentivized
-            # TODO: to forward own pings (to get highest uptime)
-            # TODO: Solved if you remove peers that do not forward your ping
-
-            redistribute = int(request.args.get('redistribute'))
-            if redistribute:
-                origin = request.args.get('addr')
-                self.networker.forward(data_dict=ping,
-                                       route='ping',
-                                       origin=origin,
-                                       redistribute=redistribute)
-
-            return "Added ping", 201
+        @app.route('/forward/vote', methods=['POST'])
+        def forward_vote():
+            return self.handle_ping(request.get_json(), vote=True)
 
         # TODO: In the future, create a dns seed with something similar to
         # https://github.com/sipa/bitcoin-seeder
@@ -166,8 +169,8 @@ class API(object):
         def info_ping_pool():
             return jsonify(remap(self.clockchain.ping_pool)), 200
 
-        @app.route('/info/vote_pool', methods=['GET'])
-        def info_vote_pool():
-            return jsonify(remap(self.clockchain.vote_pool)), 200
+        @app.route('/info/vote_counts', methods=['GET'])
+        def info_vote_counts():
+            return jsonify(remap(self.clockchain.get_vote_counts())), 200
 
         return app

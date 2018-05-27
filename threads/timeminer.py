@@ -18,6 +18,8 @@ class Timeminer(object):
         self.tick_thread.start()
 
     def generate_and_process_ping(self, reference, vote=False):
+        # TODO: Code duplication between here and api.. where to put??
+        # TODO: Can't be in helpers, and cant be in clockchain/networker..
         # Always construct ping in the following order:
         # 1) Init 2) Mine+nonce 3) Add signature
         # This is because the order of nonce and sig creation matters
@@ -33,8 +35,7 @@ class Timeminer(object):
         ping['signature'] = signature
 
         # Validate own ping
-        if not validate_ping(ping, self.clockchain.ping_pool,
-                             vote, self.clockchain.vote_pool):
+        if not validate_ping(ping, self.clockchain.ping_pool, vote):
             logger.debug("Failed own ping validation")
             return False
 
@@ -43,12 +44,14 @@ class Timeminer(object):
         else:
             self.clockchain.add_to_ping_pool(ping)
 
+        route = 'vote' if vote else 'ping'
+
         # Forward to peers (this must be after all validation)
-        self.networker.forward(data_dict=ping, route='ping',
+        self.networker.forward(data_dict=ping, route=route,
                                origin=credentials.addr,
                                redistribute=0)
 
-        logger.debug("Forwarded own ping: " + str(ping))
+        logger.debug("Forwarded own " + route + ": " + str(ping))
 
         return True
 
@@ -110,6 +113,8 @@ class Timeminer(object):
         while True:
             if self.networker.ready and not self.added_ping:
 
+                self.networker.stage = "ping"
+
                 logger.debug("Haven't pinged this round! Starting to mine..")
                 successful = \
                     self.generate_and_process_ping(
@@ -136,7 +141,7 @@ class Timeminer(object):
 
                 logger.debug("Haven't ticked this round! Starting to mine..")
 
-                self.networker.stage = "init"
+                self.networker.stage = "tick"
 
                 self.generate_and_process_tick()
 
@@ -154,10 +159,10 @@ class Timeminer(object):
 
                 time.sleep(config['tick_step_time'])
 
-                logger.debug("Consolidate ticks stage-------------------------")
-                self.networker.stage = "consolidate"
+                logger.debug("Select ticks stage-------------------------")
+                self.networker.stage = "select"
 
-                self.clockchain.consolidate_highest_voted_to_chain()
+                self.clockchain.select_highest_voted_to_chain()
 
                 self.added_ping = False
             else:

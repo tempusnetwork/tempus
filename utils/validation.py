@@ -128,7 +128,7 @@ def validate_tick(tick, current_height=None, possible_previous_ticks=None):
     return True
 
 
-def validate_ping(ping, ping_pool=None, vote=False, vote_pool=None):
+def validate_ping(ping, ping_pool=None, vote=False):
     if not validate_schema(ping, 'ping_schema.json'):
         logger.debug("Ping failed schema validation")
         return False
@@ -138,10 +138,8 @@ def validate_ping(ping, ping_pool=None, vote=False, vote_pool=None):
             if pubkey_to_addr(ping['pubkey']) not in ping_pool:
                 logger.debug("Ping-voters's pubkey not found in pingpool")
                 return False
-            if vote_pool is not None and \
-                    pubkey_to_addr(ping['pubkey']) in vote_pool:
-                logger.debug("Ping-voter tried to vote twice!")
-                return False
+
+            # Voting twice just overwrites your past vote!
         else:
             if pubkey_to_addr(ping['pubkey']) in ping_pool:
                 logger.debug("Ping was already in pool")
