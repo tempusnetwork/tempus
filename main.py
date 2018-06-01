@@ -2,6 +2,7 @@ from argparse import ArgumentParser
 from threads.api import API
 from threads.networker import Networker
 from threads.timeminer import Timeminer
+from werkzeug.serving import run_simple
 from datastructures.clockchain import Clockchain
 
 
@@ -29,7 +30,9 @@ if __name__ == '__main__':
     while True:
         try:
             networker.set_port(port)
-            app.run(host='127.0.0.1', port=port)
+            # TODO: Do not run_simple in production mode? What happens?
+            # Removed app.run for now due to annoying logging output.
+            run_simple('127.0.0.1', port, app)
             break  # Leave break here so infinite loop stops!
         except OSError:
             port = port + 1

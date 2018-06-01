@@ -1,8 +1,8 @@
 import requests
-from urllib.parse import urlparse
 from flask import jsonify, request, Flask
 from utils.pki import pubkey_to_addr, verify
-from utils.helpers import remap, resolve, standard_encode, hasher
+from utils.helpers import remap, resolve, standard_encode, hasher,\
+    handle_exception
 from utils.common import logger, config, credentials
 from utils.validation import validate_tick, validate_ping, validate_schema
 from expiringdict import ExpiringDict
@@ -58,6 +58,7 @@ class API(object):
     def create_app(self):
         app = Flask(__name__)
 
+        # TODO: Only accept ticks/pings from peers?
         @app.route('/forward/tick', methods=['POST'])
         def forward_tick():
             if self.networker.stage == "select":
@@ -126,21 +127,26 @@ class API(object):
             remote_url = resolve(request.remote_addr)
             remote_url = "http://" + remote_url + ":" + str(remote_port)
 
-            remote_cleaned_url = urlparse(remote_url).netloc
-            own_cleaned_url = urlparse(request.url_root).netloc
-
-            # TODO: Add sig validation here?
-            #  to make sure peer is who they say they are
+            remote_cleaned_url = self.networker.get_full_location(remote_url)
+            own_cleaned_url = self.networker.get_full_location(request.url_root)
 
             # Avoid inf loop by not adding self..
             if remote_cleaned_url != own_cleaned_url:
-                addr = requests.get(remote_url + '/info/addr').text
+                try:
+                    addr = requests.get(remote_url + '/info/addr',
+                                        timeout=config['timeout']).text
+                except requests.exceptions.ReadTimeout:
+                    return "couldnt get addr", 400
+                except requests.exceptions.ConnectionError:
+                    return "couldnt get addr", 400
+                except Exception as e:
+                    handle_exception(e)
+                    return str(e), 400
 
                 # Verify that the host's address matches the key pair used
                 # to sign the mutual_add request
                 if not pubkey_to_addr(values['pubkey']) == addr:
-                    logger.info("Received request signed with key != host")
-                    return "Signature does not match address of given host", 400
+                    return "Received request signed with key != host", 400
 
                 if not self.networker.register_peer(remote_url, addr):
                     return "Could not register peer", 400
@@ -148,11 +154,22 @@ class API(object):
                     if credentials.addr in self.clockchain.ping_pool:
                         ping = self.clockchain.ping_pool[credentials.addr]
                         # Forward but do not redistribute
-                        requests.post(
-                            remote_url + '/forward/ping?addr=' +
-                            credentials.addr + "&redistribute=0",
-                            json=ping,
-                            timeout=config['timeout'])
+                        try:
+                            requests.post(
+                                remote_url + '/forward/ping?addr=' +
+                                credentials.addr + "&redistribute=-1",
+                                json=ping,
+                                timeout=config['timeout'])
+                        except requests.exceptions.ReadTimeout:
+                            return "couldnt forward own ping", 400
+                        except requests.exceptions.ConnectionError:
+                            return "couldnt forward own ping", 400
+                        except Exception as e:
+                            handle_exception(e)
+                            return str(e), 400
+            else:
+                return "cannot add self", 400
+
             return credentials.addr, 201
 
         @app.route('/info/clockchain', methods=['GET'])
@@ -177,5 +194,12 @@ class API(object):
         @app.route('/info/vote_counts', methods=['GET'])
         def info_vote_counts():
             return jsonify(remap(self.clockchain.get_vote_counts())), 200
+
+        @app.after_request
+        def after(response):
+            logger.debug(request.remote_addr + " " + request.method + " "
+                         + request.path + ": [" + str(response.status_code)
+                         + "] " + response.get_data().decode("utf-8").rstrip())
+            return response
 
         return app

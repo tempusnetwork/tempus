@@ -17,6 +17,10 @@ with open(dir_path + '/config.json') as config_file:
 # Set up logging
 logger = logging.getLogger('clocklog')
 
+# Remove annoying and misformatted flask output, gets replaced by own logging
+flasklogger = logging.getLogger('werkzeug')
+flasklogger.setLevel(logging.ERROR)
+
 logging_formatter = logging.Formatter(fmt=
                                       '%(asctime)s %(module)s %(threadName)s'
                                       ' %(levelname)s: %(message)s',
@@ -35,7 +39,9 @@ handler = TimedRotatingFileHandler(config['log_file'], backupCount=3,
 handler.suffix = "%Y-%m-%d.log"
 
 handler.setFormatter(logging_formatter)
+
 logger.addHandler(handler)
+
 logger.setLevel(logging.DEBUG)
 
 # TODO: Put console level at INFO so you dont see all debug messages

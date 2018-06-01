@@ -47,7 +47,7 @@ def pubkey_to_addr(pubkey):
     to_encode = binascii.unhexlify(binary_addr)
     addr = base58.b58encode(to_encode)
 
-    return addr
+    return addr.decode("utf-8")
 
 
 def sign(message, privkey):

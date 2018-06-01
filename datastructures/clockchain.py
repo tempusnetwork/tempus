@@ -38,6 +38,15 @@ class Clockchain(object):
 
         return hasher(current_tick_copy)
 
+    def prev_tick_ref(self):
+        prev_tick_copy = copy.deepcopy(self.latest_selected_tick())
+
+        # Removing signature and this_tick in order to return correct hash
+        prev_tick_copy.pop('signature', None)
+        prev_tick_copy.pop('this_tick', None)
+
+        return hasher(prev_tick_copy)
+
     def json_tick_to_chain_tick(self, tick):
         dictified = {}
 
@@ -53,6 +62,13 @@ class Clockchain(object):
 
     def current_height(self):
         return self.latest_selected_tick()['height']
+
+    def active_tick(self):
+        if self.tick_pool_size() > 0:
+            _, _, tick = list(self.tick_pool.queue)[0]
+            return tick
+        else:
+            return None
 
     def possible_previous_ticks(self):
         if len(self.chainlist()) > 0:
@@ -70,12 +86,6 @@ class Clockchain(object):
 
     def tick_pool_size(self):
         return len(list(self.tick_pool.queue))
-
-    def tick_already_chosen(self):
-        if self.tick_pool_size() == 0:
-            return False
-        else:
-            return True
 
     def add_to_ping_pool(self, ping):
         addr_to_add = pubkey_to_addr(ping['pubkey'])
@@ -123,7 +133,7 @@ class Clockchain(object):
         top_ref, top_score = sorted_votes.pop(0)
         highest_voted_ticks.append(top_ref)
 
-        logger.debug("Highest score achieved was: " + str(top_score))
+        logger.debug("Highest amount of votes achieved was: " + str(top_score))
 
         for vote in sorted_votes:
             next_ref, next_score = vote
@@ -156,14 +166,6 @@ class Clockchain(object):
                 tick = None
                 pass
 
-        return tick
-
-    def active_tick(self):
-        # This will be the lowest score (highest cumulative cont.)
-        if self.tick_pool_size() > 0:
-            _, _, tick = list(self.tick_pool.queue)[0]
-        else:
-            tick = self.latest_selected_tick()
         return tick
 
     def select_highest_voted_to_chain(self):

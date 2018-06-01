@@ -3,6 +3,7 @@ from utils.helpers import utcnow, standard_encode, mine
 from utils.common import logger, credentials, config
 from utils.pki import sign
 import time
+import random
 import threading
 
 
@@ -56,25 +57,16 @@ class Timeminer(object):
         return True
 
     def generate_and_process_tick(self):
-        # Here we already have active tick, so no point in sending own
-        if self.clockchain.tick_already_chosen():
-            logger.debug("Already chosen at tick start")
-            return False
-
         height = self.clockchain.current_height() + 1
 
         tick = {
             'list': list(self.clockchain.ping_pool.values()),
             'pubkey': credentials.pubkey,
-            'prev_tick': self.clockchain.current_tick_ref(),
+            'prev_tick': self.clockchain.prev_tick_ref(),
             'height': height
         }
 
         this_tick, nonce = mine(tick)
-
-        if self.clockchain.tick_already_chosen():
-            logger.debug("Already chosen after mining")
-            return False
 
         tick['nonce'] = nonce
 
@@ -90,24 +82,22 @@ class Timeminer(object):
         possible_previous = self.clockchain.possible_previous_ticks()
 
         # Validate own tick
-        if not validate_tick(tick, current_height, possible_previous):
-            logger.debug("Failed own tick validation")
-            return False
+        retries = 0
+        while retries < 3:
+            if not validate_tick(tick, current_height, possible_previous):
+                retries = retries + 1
+                time.sleep(0.5)
+            else:
+                self.clockchain.add_to_tick_pool(tick)
+                # Forward to peers (this must be after all validation)
+                self.networker.forward(data_dict=tick, route='tick',
+                                       origin=credentials.addr,
+                                       redistribute=0)
+                logger.debug("Forwarded own tick: " + str(tick))
+                return True
 
-        if self.clockchain.tick_already_chosen():
-            logger.debug("Already chosen after validation")
-            return False
-
-        self.clockchain.add_to_tick_pool(tick)
-
-        # Forward to peers (this must be after all validation)
-        self.networker.forward(data_dict=tick, route='tick',
-                               origin=credentials.addr,
-                               redistribute=0)
-
-        logger.debug("Forwarded own tick: " + str(tick))
-
-        return True
+        logger.debug("Failed own tick validation 3 times..")
+        return False
 
     def ping_worker(self):
         while True:
@@ -115,10 +105,10 @@ class Timeminer(object):
 
                 self.networker.stage = "ping"
 
-                logger.debug("Haven't pinged this round! Starting to mine..")
+                logger.debug("Ping stage--------------------------------------")
                 successful = \
                     self.generate_and_process_ping(
-                        self.clockchain.current_tick_ref())
+                        self.clockchain.prev_tick_ref())
 
                 if not successful:
                     continue
@@ -135,13 +125,17 @@ class Timeminer(object):
                 # 1) Init 2) Mine+nonce 3) Add signature
                 # This is because the order of nonce and sig creation matters
 
+                # TODO: Reset sleeping time to adjust to average network cycle
+                # TODO: This is to make sure our own cycle doesn't drift
+                # TODO: This by waiting til own.clock is exactly X seconds after
+                # TODO: Previous network median timestamp, instead of sleeping
                 # Adding a bit of margin for mining, otherwise tick rejected
                 time.sleep(config['cycle_step_time']
-                           + config['tick_period_margin'])
+                           + random.uniform(0, config['tick_period_margin']))
 
                 # TODO: Adjust margin based on max possible mining time?
 
-                logger.debug("Haven't ticked this round! Starting to mine..")
+                logger.debug("Tick stage--------------------------------------")
 
                 self.networker.stage = "tick"
 
@@ -149,7 +143,7 @@ class Timeminer(object):
 
                 time.sleep(config['cycle_step_time'])
 
-                logger.debug("Voting stage------------------------------")
+                logger.debug("Vote stage--------------------------------------")
                 self.networker.stage = "vote"
                 # Use a ping to vote for highest continuity tick in tick_pool
 
@@ -162,7 +156,7 @@ class Timeminer(object):
 
                 time.sleep(config['cycle_step_time'])
 
-                logger.debug("Select ticks stage-------------------------")
+                logger.debug("Select ticks stage------------------------------")
                 self.networker.stage = "select"
 
                 self.clockchain.select_highest_voted_to_chain()
