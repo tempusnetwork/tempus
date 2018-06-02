@@ -6,6 +6,7 @@ coloredlogs==10.0
 ecdsa==0.13
 expiringdict==1.1.4
 Flask==1.0.2
+gunicorn==19.8.1
 humanfriendly==4.12.1
 idna==2.6
 itsdangerous==0.24

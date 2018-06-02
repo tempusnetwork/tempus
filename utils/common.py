@@ -59,7 +59,7 @@ credentials = lambda: None
 # Use reward address as identifier for this node
 if config['generate_rand_addr']:
     credentials.pubkey, credentials.privkey = get_kp()
-    logger.debug("Using random addr + privkey: " + credentials.privkey)
+    logger.debug("Using random addr+privkey: " + credentials.privkey)
 else:
     # Assumes priv.json exists containing fixed private key
     # This file is in .gitignore so you don't publish your privkey..

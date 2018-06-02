@@ -23,6 +23,7 @@ class Networker(object):
         self.t = Timer(config['port_timer_timeout'], self.activate)
 
     def activate(self):
+        logger.debug("Activating networker")
         self.join_network_thread.start()
 
     def set_port(self, port):

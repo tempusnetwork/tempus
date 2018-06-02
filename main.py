@@ -2,11 +2,34 @@ from argparse import ArgumentParser
 from threads.api import API
 from threads.networker import Networker
 from threads.timeminer import Timeminer
-from werkzeug.serving import run_simple
+from utils.common import logger
 from datastructures.clockchain import Clockchain
 
 
+# Function using gunicorn to launch in production mode. Use below cmd to run
+# G_PORT=5000; gunicorn "main:build_app(g_port=$G_PORT)" -b localhost:$G_PORT
+def build_app(g_port):
+    logger.debug("Running in production mode")
+    # The "pure" instances, one clockchain datastructure and one for messaging
+    g_clockchain = Clockchain()
+    g_networker = Networker()
+
+    # Timeminer handles all network validation, and API exposes messaging
+    g_timeminer = Timeminer(g_clockchain, g_networker)
+    g_api = API(g_clockchain, g_networker)
+
+    g_app = g_api.create_app()
+
+    g_networker.port = g_port
+    g_networker.activate()
+
+    return g_app
+
+
 if __name__ == '__main__':
+    # Dev mode, since gunicorn won't reach anything inside __main__
+    from werkzeug.serving import run_simple
+
     # The "pure" instances, one clockchain datastructure and one for messaging
     clockchain = Clockchain()
     networker = Networker()
@@ -15,7 +38,12 @@ if __name__ == '__main__':
     timeminer = Timeminer(clockchain, networker)
     api = API(clockchain, networker)
 
-    # Parse port as command line argument
+    app = api.create_app()
+
+    # TODO: When project is dockerized below is not needed anymore
+
+    # Try ports until one succeeds
+
     parser = ArgumentParser()
     parser.add_argument('-p', '--port', default=5000,
                         type=int, help='port to listen on')
@@ -23,10 +51,6 @@ if __name__ == '__main__':
     args = parser.parse_args()
     port = args.port
 
-    app = api.create_app()
-
-    # TODO: When project is dockerized below is not needed anymore
-    # Try ports until one succeeds
     while True:
         try:
             networker.set_port(port)

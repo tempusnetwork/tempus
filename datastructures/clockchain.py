@@ -3,6 +3,7 @@ from utils.common import logger, credentials, config
 from utils.pki import pubkey_to_addr
 from queue import Queue, PriorityQueue
 import copy
+import time
 
 
 class Clockchain(object):
@@ -30,6 +31,9 @@ class Clockchain(object):
         self.chain.put(genesis_dict)
 
     def current_tick_ref(self):
+        while self.active_tick() is None:
+            time.sleep(0.1)
+
         current_tick_copy = copy.deepcopy(self.active_tick())
 
         # Removing signature and this_tick in order to return correct hash
