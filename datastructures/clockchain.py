@@ -30,28 +30,33 @@ class Clockchain(object):
         genesis_dict = self.json_tick_to_chain_tick(tick)
         self.chain.put(genesis_dict)
 
+    # Returns most recent tick reference: highest continuity tick from tickpool
+    # Used for voting
     def current_tick_ref(self):
         while self.active_tick() is None:
             time.sleep(0.1)
+        return self.get_tick_ref(self.active_tick())
 
-        current_tick_copy = copy.deepcopy(self.active_tick())
-
-        # Removing signature and this_tick in order to return correct hash
-        current_tick_copy.pop('signature', None)
-        current_tick_copy.pop('this_tick', None)
-
-        return hasher(current_tick_copy)
-
+    # Returns the reference of any of previous ticks that was selected to chain
     def prev_tick_ref(self):
-        prev_tick_copy = copy.deepcopy(self.latest_selected_tick())
+        return self.get_tick_ref(self.latest_selected_tick())
+
+    # Helper function to get the reference of a tick
+    @staticmethod
+    def get_tick_ref(tick):
+        tick_copy = copy.deepcopy(tick)
 
         # Removing signature and this_tick in order to return correct hash
-        prev_tick_copy.pop('signature', None)
-        prev_tick_copy.pop('this_tick', None)
+        tick_copy.pop('signature', None)
+        tick_copy.pop('this_tick', None)
 
-        return hasher(prev_tick_copy)
+        return hasher(tick_copy)
 
-    def json_tick_to_chain_tick(self, tick):
+    # Helper function to convert a json tick to a tick format used in our chain
+    # Essentially instead of having a tick with its reference in ['this_tick'],
+    # it uses the reference as dictionary key for fast retrieval of rest of tick
+    @staticmethod
+    def json_tick_to_chain_tick(tick):
         dictified = {}
 
         tick_copy = copy.deepcopy(tick)
@@ -67,6 +72,7 @@ class Clockchain(object):
     def current_height(self):
         return self.latest_selected_tick()['height']
 
+    # Returns the current highest continuity tick from tick_pool
     def active_tick(self):
         if self.tick_pool_size() > 0:
             _, _, tick = list(self.tick_pool.queue)[0]
@@ -74,6 +80,7 @@ class Clockchain(object):
         else:
             return None
 
+    # Named possible since the chain might have orphans / be forked
     def possible_previous_ticks(self):
         if len(self.chainlist()) > 0:
             return self.chainlist()[-1]
@@ -84,7 +91,8 @@ class Clockchain(object):
         return list(self.chain.queue)
 
     def restart_cycle(self):
-        self.ping_pool = {}
+        # Ping_pool is not cleared here since we might have received pings
+        # at vote/select stage already, by faster peers
         self.vote_pool = {}
         self.tick_pool = PriorityQueue()
 
@@ -95,10 +103,12 @@ class Clockchain(object):
         addr_to_add = pubkey_to_addr(ping['pubkey'])
         self.ping_pool[addr_to_add] = ping
 
+    # Different to above: only store the vote reference and not entire structure
     def add_to_vote_pool(self, vote):
         addr_to_add = pubkey_to_addr(vote['pubkey'])
         self.vote_pool[addr_to_add] = vote['reference']
 
+    # Returns a dict where keys are references of ticks and their nr of votes
     def get_vote_counts(self):
         count_dict = {}
 
@@ -116,10 +126,9 @@ class Clockchain(object):
         tick_continuity = measure_tick_continuity(
             self.json_tick_to_chain_tick(tick_copy), self.chainlist())
 
-        # Using tick number to insert into PriorityQueue, this allows for
-        # "Stable sorting" of equal valued priorities (FIFO)
-        # This guarantees that the top item is first sorted by Priority,
-        # and then by insertion order
+        # This tracking number is used to make sure that in the case of
+        # equal valued items, the first one (FIFO) is returned. tick_number
+        # simply keeps track of which equivalued tick was inserted first
         tick_number = self.tick_pool_size() + 1
 
         # Putting minus sign on the continuity measurement since PriorityQueue
@@ -139,6 +148,7 @@ class Clockchain(object):
 
         logger.debug("Highest amount of votes achieved was: " + str(top_score))
 
+        # If any other refs share the same score, we return those too
         for vote in sorted_votes:
             next_ref, next_score = vote
             if next_score == top_score:
@@ -149,7 +159,7 @@ class Clockchain(object):
         return highest_voted_ticks
 
     def get_ticks_by_ref(self, references):
-        # Get the actual tick (index 2) from the tuple (_, _, tick)
+        # Get the actual tick from the tuple (_, _, tick) which is index 2
         # And put it in a list
         list_of_all_ticks = [x[2] for x in list(self.tick_pool.queue)]
 
@@ -159,7 +169,7 @@ class Clockchain(object):
 
         return filtered_ticks
 
-    # Returns one of the possibilities (at random?)
+    # Returns one of the tick possibilities (at random?)
     def latest_selected_tick(self):
         # TODO: Return the one with highest amount of pings?
         tick = None

@@ -41,7 +41,7 @@ def validate_tick_timediff(tick):
     # Median timestamp of tick must be at least config['tick_period'] ago
     median = median_ts(tick)
 
-    if not median + config['cycle_step_time'] < utcnow():
+    if not median + config['cycle_time'] < utcnow():
 
         return False
 

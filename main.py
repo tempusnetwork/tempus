@@ -15,7 +15,7 @@ def build_app(g_port):
     g_networker = Networker()
 
     # Timeminer handles all network validation, and API exposes messaging
-    g_timeminer = Timeminer(g_clockchain, g_networker)
+    Timeminer(g_clockchain, g_networker)
     g_api = API(g_clockchain, g_networker)
 
     g_app = g_api.create_app()
@@ -27,23 +27,18 @@ def build_app(g_port):
 
 
 if __name__ == '__main__':
-    # Dev mode, since gunicorn won't reach anything inside __main__
+    # This is dev mode, since gunicorn won't reach anything inside __main__
     from werkzeug.serving import run_simple
 
-    # The "pure" instances, one clockchain datastructure and one for messaging
     clockchain = Clockchain()
     networker = Networker()
 
-    # Timeminer handles all network validation, and API exposes messaging
     timeminer = Timeminer(clockchain, networker)
     api = API(clockchain, networker)
 
     app = api.create_app()
 
-    # TODO: When project is dockerized below is not needed anymore
-
     # Try ports until one succeeds
-
     parser = ArgumentParser()
     parser.add_argument('-p', '--port', default=5000,
                         type=int, help='port to listen on')
@@ -54,12 +49,10 @@ if __name__ == '__main__':
     while True:
         try:
             networker.set_port(port)
-            # TODO: Do not run_simple in production mode? What happens?
-            # Removed app.run for now due to annoying logging output.
             run_simple('127.0.0.1', port, app)
             break  # Leave break here so infinite loop stops!
         except OSError:
             port = port + 1
             pass
 
-    # Do not add anything below here, as app.run blocks rest of execution
+    # Do not add anything below here, as run_simple blocks rest of execution

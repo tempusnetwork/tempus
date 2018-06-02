@@ -1,8 +1,7 @@
 import requests
 from flask import jsonify, request, Flask
 from utils.pki import pubkey_to_addr, verify
-from utils.helpers import remap, resolve, standard_encode, hasher,\
-    handle_exception
+from utils.helpers import remap, resolve, standard_encode, hasher, attempt
 from utils.common import logger, config, credentials
 from utils.validation import validate_tick, validate_ping, validate_schema
 from expiringdict import ExpiringDict
@@ -42,6 +41,7 @@ class API(object):
         # TODO: Why would anyone forward others pings? Only incentivized
         # TODO: to forward own pings (to get highest uptime)
         # TODO: Solved if you remove peers that do not forward your ping
+        # TODO: For example by adding "shadow-peers" and checking they have it
 
         route = 'vote' if vote else 'ping'
 
@@ -132,17 +132,13 @@ class API(object):
 
             # Avoid inf loop by not adding self..
             if remote_cleaned_url != own_cleaned_url:
-                try:
-                    addr = requests.get(remote_url + '/info/addr',
-                                        timeout=config['timeout']).text
-                except requests.exceptions.ReadTimeout:
-                    return "couldnt get addr", 400
-                except requests.exceptions.ConnectionError:
-                    return "couldnt get addr", 400
-                except Exception as e:
-                    handle_exception(e)
-                    return str(e), 400
-
+                result, success = attempt(requests.get, False,
+                                          url=remote_url + '/info/addr',
+                                          timeout=config['timeout'])
+                if success:
+                    addr = result.text
+                else:
+                    return "couldn't get addr", 400
                 # Verify that the host's address matches the key pair used
                 # to sign the mutual_add request
                 if not pubkey_to_addr(values['pubkey']) == addr:
@@ -154,19 +150,14 @@ class API(object):
                     if credentials.addr in self.clockchain.ping_pool:
                         ping = self.clockchain.ping_pool[credentials.addr]
                         # Forward but do not redistribute
-                        try:
-                            requests.post(
-                                remote_url + '/forward/ping?addr=' +
-                                credentials.addr + "&redistribute=-1",
-                                json=ping,
-                                timeout=config['timeout'])
-                        except requests.exceptions.ReadTimeout:
-                            return "couldnt forward own ping", 400
-                        except requests.exceptions.ConnectionError:
-                            return "couldnt forward own ping", 400
-                        except Exception as e:
-                            handle_exception(e)
-                            return str(e), 400
+                        _, success = attempt(
+                            requests.post, False,
+                            url=remote_url + '/forward/ping?addr=' +
+                            credentials.addr + "&redistribute=-1",
+                            json=ping, timeout=config['timeout'])
+
+                        if not success:
+                            return "couldnt forward my ping", 400
             else:
                 return "cannot add self", 400
 
@@ -195,6 +186,8 @@ class API(object):
         def info_vote_counts():
             return jsonify(remap(self.clockchain.get_vote_counts())), 200
 
+        # This is done to unify logging visually.
+        # Otherwise ugly Werkzeug logging is used (which is disabled in commons)
         @app.after_request
         def after(response):
             logger.debug(request.remote_addr + " " + request.method + " "

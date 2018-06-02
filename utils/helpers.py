@@ -6,6 +6,8 @@ import hashlib
 from utils.common import logger, config
 from datetime import datetime
 import traceback
+import requests
+import time
 from statistics import median
 
 
@@ -84,6 +86,39 @@ def mine(content=None):
             break
         nonce += random.randrange(config['nonce_jump'])
     return hashed, nonce
+
+
+# Function to make a request.post/.get, with an option to allow retries
+def attempt(request, retry, **kwargs):
+    if retry:
+        retries = config['max_retries']
+    else:
+        retries = 0
+
+    times_tried = 0
+    while True:
+        try:  # Only passing **kwargs because *args used for req.type and retry
+            result = request(**kwargs)
+            return result, True
+        except requests.exceptions.ReadTimeout:
+            times_tried += 1
+            time.sleep(config['retries_sleep'])
+            if times_tried >= retries:
+                return None, False
+            pass
+        except requests.exceptions.ConnectionError:
+            times_tried += 1
+            time.sleep(config['retries_sleep'])
+            if times_tried >= retries:
+                return None, False
+            pass
+        except Exception as e:
+            times_tried += 1
+            handle_exception(e)
+            time.sleep(config['retries_sleep'])
+            if times_tried >= retries:
+                return None, False
+            pass
 
 
 def handle_exception(exception):

@@ -130,7 +130,7 @@ class Timeminer(object):
                 # TODO: This by waiting til own.clock is exactly X seconds after
                 # TODO: Previous network median timestamp, instead of sleeping
                 # Adding a bit of margin for mining, otherwise tick rejected
-                time.sleep(config['cycle_step_time']
+                time.sleep(config['cycle_time']
                            + random.uniform(0, config['tick_period_margin']))
 
                 # TODO: Adjust margin based on max possible mining time?
@@ -141,7 +141,7 @@ class Timeminer(object):
 
                 self.generate_and_process_tick()
 
-                time.sleep(config['cycle_step_time'])
+                time.sleep(config['cycle_time'])
 
                 logger.debug("Vote stage--------------------------------------")
                 self.networker.stage = "vote"
@@ -154,7 +154,10 @@ class Timeminer(object):
 
                 logger.debug("Voted for: " + str(active_tick_ref))
 
-                time.sleep(config['cycle_step_time'])
+                time.sleep(config['cycle_time'] / 2)
+                # Clearing ping_pool here already to receive new pings
+                self.clockchain.ping_pool = {}
+                time.sleep(config['cycle_time'] / 2)
 
                 logger.debug("Select ticks stage------------------------------")
                 self.networker.stage = "select"

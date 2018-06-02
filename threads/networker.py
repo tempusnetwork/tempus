@@ -8,7 +8,7 @@ from threading import Timer, Thread
 from urllib.parse import urlparse
 
 from utils.common import logger, config, credentials
-from utils.helpers import standard_encode, handle_exception
+from utils.helpers import standard_encode, attempt
 
 
 class Networker(object):
@@ -26,6 +26,7 @@ class Networker(object):
         logger.debug("Activating networker")
         self.join_network_thread.start()
 
+    # This is used for dev mode to detect which port is free
     def set_port(self, port):
         # This timer start and resetting necessary to get the correct port..
         # I.e. if port is blocked, this method gets called again until timer
@@ -48,11 +49,6 @@ class Networker(object):
         # Avoid adding self
         if peer_addr == credentials.addr:
             logger.debug("Cannot add self")
-            return False
-
-        # Avoid adding already existing netloc
-        if netloc in self.peers:
-            logger.debug("Already have this peer")
             return False
 
         self.peers[netloc] = peer_addr
@@ -87,43 +83,15 @@ class Networker(object):
             for peer in list(self.peers):
                 # Check key exists + check we do not send msg back to originator
                 if peer in self.peers and origin != self.peers[peer]:
-                    retries = 0
-                    success = False
-                    while success is False:
-                        try:  # Add self.addr in query to identify self to peers
-                            # If origin addr is not target peer addr
-                            requests.post(
-                                peer + '/forward/' + route + '?addr=' + origin +
-                                "&redistribute=" + str(redistribute),
-                                json=data_dict, timeout=config['timeout'])
-                            success = True
-                        except requests.exceptions.ReadTimeout:
-                            retries = retries + 1
-                            time.sleep(0.5)
-                            if retries > 3:
-                                logger.debug(
-                                    "Couldn't forward to: " + peer + ", removing")
-                                self.unregister_peer(peer)
-                                return
-                            pass
-                        except requests.exceptions.ConnectionError:
-                            retries = retries + 1
-                            time.sleep(0.5)
-                            logger.debug("Couldn't forward to: " + peer + ", removing")
-                            if retries > 3:
-                                logger.debug(
-                                    "Couldn't forward to: " + peer + ", removing")
-                                self.unregister_peer(peer)
-                                return
-                            pass
-                        except Exception as e:
-                            retries = retries + 1
-                            time.sleep(0.5)
-                            if retries > 3:
-                                handle_exception(e)
-                                self.unregister_peer(peer)
-                                return
-                            pass
+                    # Add self.addr in query to identify self to peers
+                    # If origin addr is not target peer addr
+                    _, success = attempt(
+                        requests.post, True, url=peer + '/forward/' + route +
+                        '?addr=' + origin + "&redistribute=" + str(redistribute),
+                        json=data_dict, timeout=config['timeout'])
+                    if not success:
+                        logger.debug("Couldnt forward to " + peer + " removing")
+                        self.unregister_peer(peer)
 
     def unregister_peer(self, url):
         netloc = self.get_full_location(url)
@@ -134,25 +102,21 @@ class Networker(object):
     def get_full_location(url):
         return "http://" + urlparse(url).netloc
 
-    def get_sample_of_peers_from(self, peers, sample_size=config['max_peers']):
+    # This allows to get a subset of peers peers for adding
+    @staticmethod
+    def get_sample_of_peers_from(peers, sample_size=config['max_peers']):
         peers_of_peers = set()
-        # Get peers of provided peers list and add to set (set=>no duplicates)
+        # Get peers of peers and add to set (set has no duplicates)
         for peer in list(peers):
-            try:
-                next_peers = \
-                    json.loads(requests.get(
-                        peer + '/info/peers', timeout=config['timeout']).text)
+            result, success = attempt(requests.get, False,
+                                      url=peer + '/info/peers',
+                                      timeout=config['timeout'])
+            if success:
+                next_peers = json.loads(result.text)
                 for next_peer in next_peers['peers']:
                     peers_of_peers.add(next_peer)
-            except requests.exceptions.ReadTimeout:
+            else:
                 logger.debug("Couldn't connect to " + peer)
-                pass
-            except requests.exceptions.ConnectionError:
-                logger.debug("Couldn't connect to " + peer)
-                pass
-            except Exception as e:
-                handle_exception(e)
-                pass
 
         if sample_size > len(list(peers_of_peers)):
             sample_size = len(list(peers_of_peers))
@@ -169,26 +133,21 @@ class Networker(object):
                                  credentials.privkey)
                 content['signature'] = signature
                 status_code = None
-                try:
-                    response = requests.post(
-                        peer + '/mutual_add',
-                        json=content,
-                        timeout=config['timeout'])
-                    status_code = response.status_code
-                # TODO: These except clauses very repeated.. refactor into fct?
-                except requests.exceptions.ReadTimeout:
+                response = None
+                result, success = attempt(requests.post, False,
+                                          url=peer + '/mutual_add',
+                                          json=content,
+                                          timeout=config['timeout'])
+                if success:
+                    status_code = result.status_code
+                    response = result.text
+                else:
                     logger.debug("Couldn't connect to " + peer)
-                    pass
-                except requests.exceptions.ConnectionError:
-                    logger.debug("Couldn't connect to " + peer)
-                    pass
-                except Exception as e:
-                    handle_exception(e)
-                    pass
+
                 if status_code in [201, 503]:
                     if status_code == 201:
                         logger.info("Adding peer " + str(peer))
-                        peer_addr = response.text
+                        peer_addr = response
                         self.register_peer(peer, peer_addr)
                         successful_adds += 1
                     if status_code == 503:
@@ -206,8 +165,7 @@ class Networker(object):
         time.sleep(sleeptime)
 
         # First try to add seeds
-        if self.port < 5003:
-            self.send_mutual_add_requests(config['seeds'])
+        self.send_mutual_add_requests(config['seeds'])
 
         # Then get random sample of peers from them
         peer_samples = self.get_sample_of_peers_from(config['seeds'])
@@ -217,7 +175,7 @@ class Networker(object):
 
         # TODO: Sync latest datastructures with peers (choosing the majority?)
 
-        # Try to add new peers until my peerlist is at full capacity
+        # Continuously try add new peers until my peerlist is above minimum size
         while True:
             time.sleep(4)
             if len(self.peers) < config['min_peers']:

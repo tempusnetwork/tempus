@@ -19,6 +19,7 @@ logger = logging.getLogger('clocklog')
 
 # Remove annoying and misformatted flask output, gets replaced by own logging
 flasklogger = logging.getLogger('werkzeug')
+# Keep serious errors
 flasklogger.setLevel(logging.ERROR)
 
 logging_formatter = logging.Formatter(fmt=
