@@ -20,21 +20,10 @@ class Networker(object):
         self.stage = "ping"  # Stages are ping->tick->vote->select
         self.join_network_thread = Thread(target=self.join_network_worker)
         # Timer for activation thread (uses resettable timer to find out port)
-        self.t = Timer(config['port_timer_timeout'], self.activate)
 
-    def activate(self):
-        logger.debug("Activating networker")
-        self.join_network_thread.start()
-
-    # This is used for dev mode to detect which port is free
-    def set_port(self, port):
-        # This timer start and resetting necessary to get the correct port..
-        # I.e. if port is blocked, this method gets called again until timer
-        # is allowed to finally elapse and start the join network thread
-        self.t.cancel()
-        self.t = Timer(config['port_timer_timeout'], self.activate)
+    def activate(self, port):
         self.port = port
-        self.t.start()
+        self.join_network_thread.start()
 
     def register_peer(self, url, peer_addr):
         """
@@ -86,12 +75,12 @@ class Networker(object):
                     # Add self.addr in query to identify self to peers
                     # If origin addr is not target peer addr
                     _, success = attempt(
-                        requests.post, True, url=peer + '/forward/' + route +
+                        requests.post, False, url=peer + '/forward/' + route +
                         '?addr=' + origin + "&redistribute=" + str(redistribute),
                         json=data_dict, timeout=config['timeout'])
-                    if not success:
-                        logger.debug("Couldnt forward to " + peer + " removing")
-                        self.unregister_peer(peer)
+                    # if not success:
+                    #    logger.debug("Couldnt forward to " + peer + " removin")
+                    #    self.unregister_peer(peer)
 
     def unregister_peer(self, url):
         netloc = self.get_full_location(url)
@@ -128,7 +117,8 @@ class Networker(object):
         # Mutual add peers
         for peer in peerslist:
             if peer not in self.peers and len(self.peers) <= config['max_peers']:
-                content = {"port": self.port, 'pubkey': credentials.pubkey}
+                content = {"port": self.port,
+                           'pubkey': credentials.pubkey}
                 signature = sign(standard_encode(content),
                                  credentials.privkey)
                 content['signature'] = signature
@@ -165,7 +155,8 @@ class Networker(object):
         time.sleep(sleeptime)
 
         # First try to add seeds
-        self.send_mutual_add_requests(config['seeds'])
+        if self.port < 5003:
+            self.send_mutual_add_requests(config['seeds'])
 
         # Then get random sample of peers from them
         peer_samples = self.get_sample_of_peers_from(config['seeds'])

@@ -1,8 +1,9 @@
-from argparse import ArgumentParser
-from threads.api import API
+import socket
+from threads.sanic_api import API
 from threads.networker import Networker
 from threads.timeminer import Timeminer
-from utils.common import logger
+from utils.common import config, logger
+from utils.helpers import handle_exception
 from datastructures.clockchain import Clockchain
 
 
@@ -19,16 +20,13 @@ def build_app(g_port):
     g_api = API(g_clockchain, g_networker)
 
     g_app = g_api.create_app()
-
-    g_networker.port = g_port
-    g_networker.activate()
+    g_networker.activate(g_port)
 
     return g_app
 
 
 if __name__ == '__main__':
-    # This is dev mode, since gunicorn won't reach anything inside __main__
-    from werkzeug.serving import run_simple
+    # This is prod mode using Sanic
 
     clockchain = Clockchain()
     networker = Networker()
@@ -38,21 +36,23 @@ if __name__ == '__main__':
 
     app = api.create_app()
 
-    # Try ports until one succeeds
-    parser = ArgumentParser()
-    parser.add_argument('-p', '--port', default=5000,
-                        type=int, help='port to listen on')
+    port = config['default_port']
 
-    args = parser.parse_args()
-    port = args.port
+    # Check which port to use by check which ones taken with sockets
+    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 
     while True:
         try:
-            networker.set_port(port)
-            run_simple('127.0.0.1', port, app)
-            break  # Leave break here so infinite loop stops!
-        except OSError:
-            port = port + 1
-            pass
+            # This throws exception if we can't bind
+            s.bind(("127.0.0.1", port))
+            s.close()
 
-    # Do not add anything below here, as run_simple blocks rest of execution
+            networker.activate(port)
+            app.run(host="127.0.0.1", port=port, access_log=False)
+            break  # Leave break here so infinite loop stops!
+        except socket.error as e:
+            port = port+1
+            pass
+        except Exception as e:
+            handle_exception(e)
+            break
