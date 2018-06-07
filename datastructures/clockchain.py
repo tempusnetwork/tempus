@@ -202,6 +202,7 @@ class Clockchain(object):
                 to_add = self.json_tick_to_chain_tick(tick)
                 tick_dict = {**tick_dict, **to_add}
 
+            # TODO: Is this atomic? 
             if self.chain.full():
                 # This removes earliest item from queue
                 self.chain.get()

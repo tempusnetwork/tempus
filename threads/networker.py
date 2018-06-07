@@ -168,7 +168,7 @@ class Networker(object):
 
         # Continuously try add new peers until my peerlist is above minimum size
         while True:
-            time.sleep(4)
+            time.sleep(4)  # TODO: Put in config
             if len(self.peers) < config['min_peers']:
                 logger.debug("peerlist below minimum, trying to add more peers")
                 peer_samples = self.get_sample_of_peers_from(self.peers)

@@ -17,5 +17,6 @@
     "cycle_time": 20,
     "chain_max_length": 5,
     "max_retries": 3,
-    "retries_sleep": 1
+    "retries_sleep": 1,
+    "api_backend": "flask"
 }

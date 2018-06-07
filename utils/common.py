@@ -14,6 +14,13 @@ dir_path = os.path.abspath(os.path.join(this_file_path, os.pardir))
 with open(dir_path + '/config.json') as config_file:
     config = json.load(config_file)
 
+if config['api_backend'] == "flask":
+    # Remove annoying misformatted flask output, gets replaced by own logging
+    flasklogger = logging.getLogger('werkzeug')
+    # Keep serious errors
+    flasklogger.setLevel(logging.ERROR)
+
+
 # Set up logging
 logger = logging.getLogger('clocklog')
 
