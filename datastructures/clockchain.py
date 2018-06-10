@@ -208,5 +208,7 @@ class Clockchain(object):
                 self.chain.get()
 
             self.chain.put(tick_dict)
+        else:
+            logger.info("Warning!! No ticks added to chain!!")
 
         self.restart_cycle()

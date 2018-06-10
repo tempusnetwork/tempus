@@ -42,7 +42,6 @@ def validate_tick_timediff(tick):
     median = median_ts(tick)
 
     if not median + config['cycle_time'] < utcnow():
-
         return False
 
     return True

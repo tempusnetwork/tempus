@@ -1,5 +1,5 @@
 from utils.validation import validate_ping, validate_tick
-from utils.helpers import utcnow, standard_encode, mine
+from utils.helpers import utcnow, standard_encode, mine, median_ts
 from utils.common import logger, credentials, config
 from utils.pki import sign
 import time
@@ -83,7 +83,7 @@ class Timeminer(object):
 
         # Validate own tick
         retries = 0
-        while retries < 3:
+        while retries < config['tick_retries']:
             if not validate_tick(tick, current_height, possible_previous):
                 retries = retries + 1
                 time.sleep(0.5)
@@ -96,7 +96,7 @@ class Timeminer(object):
                 logger.debug("Forwarded own tick: " + str(tick))
                 return True
 
-        logger.debug("Failed own tick validation 3 times..")
+        logger.debug("Failed own tick validation too many times..")
         return False
 
     def ping_worker(self):
@@ -125,13 +125,19 @@ class Timeminer(object):
                 # 1) Init 2) Mine+nonce 3) Add signature
                 # This is because the order of nonce and sig creation matters
 
-                # TODO: Reset sleeping time to adjust to average network cycle
-                # TODO: This is to make sure our own cycle doesn't drift
-                # TODO: This by waiting til own.clock is exactly X seconds after
-                # TODO: Previous network median timestamp, instead of sleeping
-                # Adding a bit of margin for mining, otherwise tick rejected
-                time.sleep(config['cycle_time']
-                           + random.uniform(0, config['tick_period_margin']))
+                prev_tick_ts = median_ts(self.clockchain.latest_selected_tick())
+
+                if prev_tick_ts is not None:
+                    desired_ts = prev_tick_ts + 5*config['cycle_time'] + \
+                        + random.uniform(0, config['cycle_margin'])
+
+                    wait_time = desired_ts - utcnow()
+                    wait_time = 0 if wait_time < 0 else wait_time
+                else:
+                    wait_time = config['cycle_time']
+
+                logger.debug("Adjusted sleeping time: " + str(int(wait_time)))
+                time.sleep(wait_time)
 
                 # TODO: Adjust margin based on max possible mining time?
 
