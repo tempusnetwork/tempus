@@ -8,7 +8,7 @@ from datastructures.clockchain import Clockchain
 if config['api_backend'] == "flask":
     from threads.flask_api import API
 else:
-    from threads.sanic_api import API 
+    from threads.sanic_api import API
 
 
 # Function using gunicorn to launch in production mode. Use below cmd to run
