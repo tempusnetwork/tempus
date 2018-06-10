@@ -1,14 +1,7 @@
-from pki import get_kp, pubkey_to_addr, sign, verify
+from utils.pki import get_kp, sign
+from main import config
+from utils.helpers import standard_encode
 import requests
-import json
-
-
-def standard_encode(dictionary):
-    return bytes(json.dumps(dictionary, sort_keys=True, separators=(',', ':')), 'utf-8')
-
-
-with open('config.json') as config_file:
-    config = json.load(config_file)
 
 # Make a mutual_add request pretending to be another host
 

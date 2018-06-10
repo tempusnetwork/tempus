@@ -4,8 +4,10 @@ import ecdsa
 import base58
 
 
-# Assuming all input and output is in hex (apart from get_kp where input is string)
+# Assuming all input and output is hex (apart from get_kp where input is string)
 # Message is always bytes
+
+
 def get_kp(privkey=None):
     if not privkey:
         sk = ecdsa.SigningKey.generate(curve=ecdsa.SECP256k1)
@@ -45,7 +47,7 @@ def pubkey_to_addr(pubkey):
     to_encode = binascii.unhexlify(binary_addr)
     addr = base58.b58encode(to_encode)
 
-    return addr
+    return addr.decode("utf-8")
 
 
 def sign(message, privkey):
@@ -69,6 +71,7 @@ def tobytes(h):
     return bytes.fromhex(h)
 
 
+# TODO: Put in tests folder..
 def test():
     privkey = "18E14A7B6A307F426A94F8114701E7C8E774E7F9A47E2C2035DB29A206321725"
     message = b"hello"
@@ -76,4 +79,5 @@ def test():
     print(pubkey_to_addr(pubkey))
     
     signature = sign(message, privkey)
-    print("Successfully verified signed message " + str(message) + ": " +  str(verify(message, signature, pubkey)))
+    print("Successfully verified signed message "
+          + str(message) + ": " + str(verify(message, signature, pubkey)))
