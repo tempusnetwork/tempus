@@ -77,16 +77,17 @@ class Timeminer(object):
         # this_tick is not actually necessary according to tick schema
         tick['this_tick'] = this_tick
 
-        current_height = self.clockchain.current_height()
+        prev_tick = self.clockchain.latest_selected_tick()
 
         possible_previous = self.clockchain.possible_previous_ticks()
 
         # Validate own tick
         retries = 0
         while retries < config['tick_retries']:
-            if not validate_tick(tick, current_height, possible_previous):
+            if not validate_tick(tick, prev_tick, possible_previous,
+                                 verbose=False):
                 retries = retries + 1
-                time.sleep(0.5)
+                time.sleep(config['tick_retries_sleep'])
             else:
                 self.clockchain.add_to_tick_pool(tick)
                 # Forward to peers (this must be after all validation)
@@ -96,7 +97,7 @@ class Timeminer(object):
                 logger.debug("Forwarded own tick: " + str(tick))
                 return True
 
-        logger.debug("Failed own tick validation too many times..")
+        logger.debug("Failed own tick validation too many times. not forwarded")
         return False
 
     def ping_worker(self):
@@ -125,21 +126,22 @@ class Timeminer(object):
                 # 1) Init 2) Mine+nonce 3) Add signature
                 # This is because the order of nonce and sig creation matters
 
+                cycle_time = config['cycle_time']
+                cycle_multiplier = config['cycle_time_multiplier']
+
+                # Dynamic adjusting of sleeping time to match network lockstep
                 prev_tick_ts = median_ts(self.clockchain.latest_selected_tick())
+                desired_ts = prev_tick_ts + cycle_multiplier*cycle_time
 
-                if prev_tick_ts is not None:
-                    desired_ts = prev_tick_ts + 5*config['cycle_time'] + \
-                        + random.uniform(0, config['cycle_margin'])
+                wait_time = desired_ts - utcnow()
 
-                    wait_time = desired_ts - utcnow()
-                    wait_time = 0 if wait_time < 0 else wait_time
-                else:
-                    wait_time = config['cycle_time']
+                logger.debug("Median ts: " + str(prev_tick_ts) + " min ts: "
+                             + str(desired_ts) + " curr ts: " + str(utcnow()))
+
+                wait_time = 0 if wait_time < 0 else wait_time
 
                 logger.debug("Adjusted sleeping time: " + str(int(wait_time)))
-                time.sleep(wait_time)
-
-                # TODO: Adjust margin based on max possible mining time?
+                time.sleep(wait_time)  # Adjusting to follow network timing
 
                 logger.debug("Tick stage--------------------------------------")
 
@@ -147,7 +149,10 @@ class Timeminer(object):
 
                 self.generate_and_process_tick()
 
-                time.sleep(config['cycle_time'])
+                # All in all, there should be a total sleep of
+                # 'cycle_time_multiplier' * 'cycle_time' in this thread.
+                # Gets adjusted dynamically by wait_time mechanism above
+                time.sleep(cycle_time)  # 2nd sleep
 
                 logger.debug("Vote stage--------------------------------------")
                 self.networker.stage = "vote"
@@ -160,15 +165,16 @@ class Timeminer(object):
 
                 logger.debug("Voted for: " + str(active_tick_ref))
 
-                time.sleep(config['cycle_time'] / 2)
+                time.sleep(cycle_time / 2)  # 2.5th sleep
                 # Clearing ping_pool here already to receive new pings
                 self.clockchain.ping_pool = {}
-                time.sleep(config['cycle_time'] / 2)
+                time.sleep(cycle_time / 2)  # 3rd sleep
 
                 logger.debug("Select ticks stage------------------------------")
                 self.networker.stage = "select"
 
                 self.clockchain.select_highest_voted_to_chain()
+                # TODO: If nothing was added to chain.. sth obv. wrong! Resync?
 
                 self.added_ping = False
             else:

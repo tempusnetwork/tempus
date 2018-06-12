@@ -20,11 +20,13 @@ class Clockchain(object):
         tick = {
             'pubkey': 'pubkey',
             'nonce': 68696043434,
-            'list': [],
+            'list': [
+                {'timestamp': 0, 'pubkey': 'pubkey'}
+            ],
             'prev_tick': 'prev_tick',
             'height': 0,
-            'this_tick': '5ecb6e893a9350bed889b88a1fd04e58'
-                         'e6d173a7592586547f8a658c2a160000'
+            'this_tick': '55f5b323471532d860b11d4fc079ba38'
+                         '819567aa0915d83d4636d12e498a8f3e'
         }
 
         genesis_dict = self.json_tick_to_chain_tick(tick)

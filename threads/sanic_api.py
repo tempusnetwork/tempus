@@ -30,11 +30,14 @@ class API(object):
 
     async def handle_ping(self, request, vote=False):
         ping = request.json
+
+        route = 'vote' if vote else 'ping'
+
         if await self.check_duplicate(ping):
             return text("duplicate request please wait 10s", status=400)
 
         if not validate_ping(ping, self.clockchain.ping_pool, vote):
-            return text("Invalid ping", status=400)
+            return text("Invalid " + route, status=400)
 
         if vote:
             self.clockchain.add_to_vote_pool(ping)
@@ -45,8 +48,6 @@ class API(object):
         # TODO: to forward own pings (to get highest uptime)
         # TODO: Solved if you remove peers that do not forward your ping
         # TODO: For example by adding "shadow-peers" and checking they have it
-
-        route = 'vote' if vote else 'ping'
 
         redistribute = int(request.args.get('redistribute'))
         if redistribute:
@@ -72,7 +73,7 @@ class API(object):
             if await self.check_duplicate(tick):
                 return text("duplicate request please wait 10s", status=400)
 
-            if not validate_tick(tick, self.clockchain.current_height(),
+            if not validate_tick(tick, self.clockchain.latest_selected_tick(),
                                  self.clockchain.possible_previous_ticks()):
                 return text("Invalid tick", status=400)
 

@@ -13,11 +13,12 @@
     "max_hops": 1,
     "log_file": "../logs/tempus",
     "port_timer_timeout": 3,
-    "cycle_margin": 1,
-    "cycle_time": 10,
-    "tick_retries": 10,
+    "cycle_time": 20,
+    "cycle_time_multiplier": 3,
+    "tick_retries": 5,
+    "tick_retries_sleep": 1,
     "chain_max_length": 5,
-    "max_retries": 3,
-    "retries_sleep": 1,
+    "max_request_retries": 3,
+    "request_retries_sleep": 1,
     "api_backend": "flask"
 }
