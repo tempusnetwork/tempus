@@ -147,7 +147,7 @@ def validate_ping(ping, ping_pool=None, vote=False):
             # Voting twice just overwrites your past vote!
         else:
             if pubkey_to_addr(ping['pubkey']) in ping_pool:
-                logger.debug("Ping was already in pool")
+                logger.debug(stage + " was already in pool")
                 return False
 
     # Check hash and sig, keeping in mind signature might be popped off

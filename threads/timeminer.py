@@ -29,6 +29,8 @@ class Timeminer(object):
                 'timestamp': utcnow(),
                 'reference': reference}
 
+        stage = 'vote' if vote else 'ping'
+
         _, nonce = mine(ping)
         ping['nonce'] = nonce
 
@@ -37,7 +39,7 @@ class Timeminer(object):
 
         # Validate own ping
         if not validate_ping(ping, self.clockchain.ping_pool, vote):
-            logger.debug("Failed own ping validation")
+            logger.debug("Failed own " + stage + " validation")
             return False
 
         if vote:
@@ -125,7 +127,6 @@ class Timeminer(object):
                 # Always construct tick in the following order:
                 # 1) Init 2) Mine+nonce 3) Add signature
                 # This is because the order of nonce and sig creation matters
-
                 cycle_time = config['cycle_time']
                 cycle_multiplier = config['cycle_time_multiplier']
 
@@ -138,12 +139,19 @@ class Timeminer(object):
                 logger.debug("Median ts: " + str(prev_tick_ts) + " min ts: "
                              + str(desired_ts) + " curr ts: " + str(utcnow()))
 
-                wait_time = 0 if wait_time < 0 else wait_time
+                overshoot = 0
+
+                if wait_time < 0:
+                    if self.clockchain.current_height() != 0:  # If init, ignore
+                        overshoot = -wait_time
+                    logger.debug("Overshoot of " + str(int(overshoot)) + "s")
+                    wait_time = 0
 
                 logger.debug("Adjusted sleeping time: " + str(int(wait_time)))
                 time.sleep(wait_time)  # Adjusting to follow network timing
 
                 logger.debug("Tick stage--------------------------------------")
+                start = time.time()  # Start and end time used to adjust sleep
 
                 self.networker.stage = "tick"
 
@@ -152,9 +160,18 @@ class Timeminer(object):
                 # All in all, there should be a total sleep of
                 # 'cycle_time_multiplier' * 'cycle_time' in this thread.
                 # Gets adjusted dynamically by wait_time mechanism above
-                time.sleep(cycle_time)  # 2nd sleep
+                end = time.time()
+
+                # Overshoot is used if we slept too long in ping stage,
+                # then we compensate in this tick stage by speeding up sleep
+                second_sleep = cycle_time - (end-start) - overshoot
+                second_sleep = 0 if second_sleep < 0 else second_sleep
+
+                time.sleep(second_sleep)  # 2nd sleep
 
                 logger.debug("Vote stage--------------------------------------")
+                start = time.time()
+
                 self.networker.stage = "vote"
                 # Use a ping to vote for highest continuity tick in tick_pool
 
@@ -165,10 +182,17 @@ class Timeminer(object):
 
                 logger.debug("Voted for: " + str(active_tick_ref))
 
-                time.sleep(cycle_time / 2)  # 2.5th sleep
-                # Clearing ping_pool here already to receive new pings
+                end = time.time()
+
+                inbetween_sleep = cycle_time / 2
+                time.sleep(inbetween_sleep)  # 2.5th sleep
+
+                # Clearing ping_pool here already to possibly receive new pings
                 self.clockchain.ping_pool = {}
-                time.sleep(cycle_time / 2)  # 3rd sleep
+
+                third_sleep = cycle_time - inbetween_sleep - (end-start)
+                third_sleep = 0 if third_sleep < 0 else third_sleep
+                time.sleep(third_sleep)  # 3rd sleep
 
                 logger.debug("Select ticks stage------------------------------")
                 self.networker.stage = "select"
