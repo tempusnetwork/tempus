@@ -19,6 +19,6 @@ numba==0.38.0
 numpy==1.14.3
 pytz==2018.4
 requests==2.18.4
-sanic=0.7.0
+sanic==0.7.0
 urllib3==1.22
 Werkzeug==0.14.1
