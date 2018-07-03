@@ -1,5 +1,5 @@
 from utils.validation import validate_ping, validate_tick
-from utils.helpers import utcnow, standard_encode, mine
+from utils.helpers import utcnow, standard_encode, mine, median_ts
 from utils.common import logger, credentials, config
 from utils.pki import sign
 import time
@@ -29,6 +29,8 @@ class Timeminer(object):
                 'timestamp': utcnow(),
                 'reference': reference}
 
+        stage = 'vote' if vote else 'ping'
+
         _, nonce = mine(ping)
         ping['nonce'] = nonce
 
@@ -37,7 +39,7 @@ class Timeminer(object):
 
         # Validate own ping
         if not validate_ping(ping, self.clockchain.ping_pool, vote):
-            logger.debug("Failed own ping validation")
+            logger.debug("Failed own " + stage + " validation")
             return False
 
         if vote:
@@ -77,16 +79,17 @@ class Timeminer(object):
         # this_tick is not actually necessary according to tick schema
         tick['this_tick'] = this_tick
 
-        current_height = self.clockchain.current_height()
+        prev_tick = self.clockchain.latest_selected_tick()
 
         possible_previous = self.clockchain.possible_previous_ticks()
 
         # Validate own tick
         retries = 0
-        while retries < 3:
-            if not validate_tick(tick, current_height, possible_previous):
+        while retries < config['tick_retries']:
+            if not validate_tick(tick, prev_tick, possible_previous,
+                                 verbose=False):
                 retries = retries + 1
-                time.sleep(0.5)
+                time.sleep(config['tick_retries_sleep'])
             else:
                 self.clockchain.add_to_tick_pool(tick)
                 # Forward to peers (this must be after all validation)
@@ -96,7 +99,7 @@ class Timeminer(object):
                 logger.debug("Forwarded own tick: " + str(tick))
                 return True
 
-        logger.debug("Failed own tick validation 3 times..")
+        logger.debug("Failed own tick validation too many times. not forwarded")
         return False
 
     def ping_worker(self):
@@ -124,26 +127,51 @@ class Timeminer(object):
                 # Always construct tick in the following order:
                 # 1) Init 2) Mine+nonce 3) Add signature
                 # This is because the order of nonce and sig creation matters
+                cycle_time = config['cycle_time']
+                cycle_multiplier = config['cycle_time_multiplier']
 
-                # TODO: Reset sleeping time to adjust to average network cycle
-                # TODO: This is to make sure our own cycle doesn't drift
-                # TODO: This by waiting til own.clock is exactly X seconds after
-                # TODO: Previous network median timestamp, instead of sleeping
-                # Adding a bit of margin for mining, otherwise tick rejected
-                time.sleep(config['cycle_time']
-                           + random.uniform(0, config['tick_period_margin']))
+                # Dynamic adjusting of sleeping time to match network lockstep
+                prev_tick_ts = median_ts(self.clockchain.latest_selected_tick())
+                desired_ts = prev_tick_ts + cycle_multiplier*cycle_time
 
-                # TODO: Adjust margin based on max possible mining time?
+                wait_time = desired_ts - utcnow()
+
+                logger.debug("Median ts: " + str(prev_tick_ts) + " min ts: "
+                             + str(desired_ts) + " curr ts: " + str(utcnow()))
+
+                overshoot = 0
+
+                if wait_time < 0:
+                    if self.clockchain.current_height() != 0:  # If init, ignore
+                        overshoot = -wait_time
+                    logger.debug("Overshoot of " + str(int(overshoot)) + "s")
+                    wait_time = 0
+
+                logger.debug("Adjusted sleeping time: " + str(int(wait_time)))
+                time.sleep(wait_time)  # Adjusting to follow network timing
 
                 logger.debug("Tick stage--------------------------------------")
+                start = time.time()  # Start and end time used to adjust sleep
 
                 self.networker.stage = "tick"
 
                 self.generate_and_process_tick()
 
-                time.sleep(config['cycle_time'])
+                # All in all, there should be a total sleep of
+                # 'cycle_time_multiplier' * 'cycle_time' in this thread.
+                # Gets adjusted dynamically by wait_time mechanism above
+                end = time.time()
+
+                # Overshoot is used if we slept too long in ping stage,
+                # then we compensate in this tick stage by speeding up sleep
+                second_sleep = cycle_time - (end-start) - overshoot
+                second_sleep = 0 if second_sleep < 0 else second_sleep
+
+                time.sleep(second_sleep)  # 2nd sleep
 
                 logger.debug("Vote stage--------------------------------------")
+                start = time.time()
+
                 self.networker.stage = "vote"
                 # Use a ping to vote for highest continuity tick in tick_pool
 
@@ -154,15 +182,23 @@ class Timeminer(object):
 
                 logger.debug("Voted for: " + str(active_tick_ref))
 
-                time.sleep(config['cycle_time'] / 2)
-                # Clearing ping_pool here already to receive new pings
+                end = time.time()
+
+                inbetween_sleep = cycle_time / 2
+                time.sleep(inbetween_sleep)  # 2.5th sleep
+
+                # Clearing ping_pool here already to possibly receive new pings
                 self.clockchain.ping_pool = {}
-                time.sleep(config['cycle_time'] / 2)
+
+                third_sleep = cycle_time - inbetween_sleep - (end-start)
+                third_sleep = 0 if third_sleep < 0 else third_sleep
+                time.sleep(third_sleep)  # 3rd sleep
 
                 logger.debug("Select ticks stage------------------------------")
                 self.networker.stage = "select"
 
                 self.clockchain.select_highest_voted_to_chain()
+                # TODO: If nothing was added to chain.. sth obv. wrong! Resync?
 
                 self.added_ping = False
             else:

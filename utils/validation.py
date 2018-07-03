@@ -41,8 +41,9 @@ def validate_tick_timediff(tick):
     # Median timestamp of tick must be at least config['tick_period'] ago
     median = median_ts(tick)
 
-    if not median + config['cycle_time'] < utcnow():
-
+    utc_now = utcnow()
+    if not median + \
+            config['cycle_time_multiplier']*config['cycle_time'] < utc_now:
         return False
 
     return True
@@ -84,10 +85,12 @@ def validate_sig_hash(item):
     return True
 
 
-def validate_tick(tick, current_height=None, possible_previous_ticks=None):
+def validate_tick(tick, previous_tick=None, possible_previous_ticks=None,
+                  verbose=True):
     # Doing validation on a copy so that the original keeps its "this_tick" ref
     # Otherwise the tick dict will be modified by any operations done here
     tick_copy = copy.deepcopy(tick)
+    prev_tick_copy = copy.deepcopy(previous_tick)
 
     # This is used to keep track of the hash of the tick as debug information
     # Popping it off as it is not supposed to be an actual part of a tick
@@ -102,19 +105,19 @@ def validate_tick(tick, current_height=None, possible_previous_ticks=None):
         logger.debug("Tick failed signature and hash checking")
         return False
 
-    if current_height is not None:
-        if tick_copy['height'] != current_height + 1:
+    if previous_tick is not None:
+        if tick_copy['height'] != prev_tick_copy['height'] + 1:
             logger.debug("Tick failed height check")
             return False
 
     if possible_previous_ticks is not None:
         if not tick_copy['prev_tick'] in possible_previous_ticks:
-            logger.debug("Tick failed referencing previous possible ticks")
+            logger.debug("Tick failed referencing any 1 of prev possible ticks")
             return False
 
     # TODO: This forces lower bound, but should also include upper bound?
-    if not validate_tick_timediff(tick_copy):
-        logger.debug("Tick failed minimum timediff check")
+    if not validate_tick_timediff(prev_tick_copy):  # Verbose: fails often
+        logger.debug("Tick failed minimum timediff check") if verbose else None
         return False
 
     # Check all pings in list
@@ -144,7 +147,7 @@ def validate_ping(ping, ping_pool=None, vote=False):
             # Voting twice just overwrites your past vote!
         else:
             if pubkey_to_addr(ping['pubkey']) in ping_pool:
-                logger.debug("Ping was already in pool")
+                logger.debug(stage + " was already in pool")
                 return False
 
     # Check hash and sig, keeping in mind signature might be popped off

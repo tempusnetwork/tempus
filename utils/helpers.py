@@ -36,8 +36,12 @@ def hasher(dictionary):
 
 
 def median_ts(tick):
-    ts_list = [ping['timestamp'] for ping in tick['list']]
-    return median(ts_list)
+    if 'list' in tick and len(tick['list']) > 0 \
+            and 'timestamp' in tick['list'][0]:
+        ts_list = [ping['timestamp'] for ping in tick['list']]
+        return median(ts_list)
+    else:
+        return None
 
 
 def measure_tick_continuity(tick_dict, chain):
@@ -91,7 +95,7 @@ def mine(content=None):
 # Function to make a request.post/.get, with an option to allow retries
 def attempt(request, retry, **kwargs):
     if retry:
-        retries = config['max_retries']
+        retries = config['max_request_retries']
     else:
         retries = 0
 
@@ -102,20 +106,20 @@ def attempt(request, retry, **kwargs):
             return result, True
         except requests.exceptions.ReadTimeout:
             times_tried += 1
-            time.sleep(config['retries_sleep'])
+            time.sleep(config['request_retries_sleep'])
             if times_tried >= retries:
                 return None, False
             pass
         except requests.exceptions.ConnectionError:
             times_tried += 1
-            time.sleep(config['retries_sleep'])
+            time.sleep(config['request_retries_sleep'])
             if times_tried >= retries:
                 return None, False
             pass
         except Exception as e:
             times_tried += 1
             handle_exception(e)
-            time.sleep(config['retries_sleep'])
+            time.sleep(config['request_retries_sleep'])
             if times_tried >= retries:
                 return None, False
             pass

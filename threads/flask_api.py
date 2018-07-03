@@ -30,8 +30,10 @@ class API(object):
         if self.check_duplicate(ping):
             return "duplicate request please wait 10s", 400
 
+        route = 'vote' if vote else 'ping'
+
         if not validate_ping(ping, self.clockchain.ping_pool, vote):
-            return "Invalid ping", 400
+            return "Invalid " + route, 400
 
         if vote:
             self.clockchain.add_to_vote_pool(ping)
@@ -69,7 +71,7 @@ class API(object):
             if self.check_duplicate(tick):
                 return "duplicate request please wait 10s", 400
 
-            if not validate_tick(tick, self.clockchain.current_height(),
+            if not validate_tick(tick, self.clockchain.latest_selected_tick(),
                                  self.clockchain.possible_previous_ticks()):
                 return "Invalid tick", 400
 
