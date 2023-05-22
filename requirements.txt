@@ -18,7 +18,7 @@ MarkupSafe==1.0
 numba==0.38.0
 numpy==1.22.0
 pytz==2018.4
-requests==2.22.0
+requests==2.31.0
 sanic==20.12.7
 urllib3==1.26.5
 Werkzeug==2.2.3
